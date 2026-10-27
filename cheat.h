@@ -388,4 +388,4 @@ extern void ChatSpamUpdate(F32 dt);
 
 extern "C" void MenuInit();
 extern void MenuRenderFrame();
-extern void DoRender(void* descriptor);
+extern "C" void DoRender(void* descriptor);
