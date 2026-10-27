@@ -3,10 +3,6 @@
 #include <imgui.h>
 #include <imgui_impl_metal.h>
 
-static bool g_menu_init = false;
-static void* g_metal_device = 0;
-static void* g_metal_command_queue = 0;
-
 static void MenuRender() {
     if (!g_menu_open) return;
 
@@ -147,8 +143,6 @@ static void MenuUpdate(F32 dt) {
     ESPRender();
     ChamsApply();
 }
-
-static bool g_menu_visible = false;
 
 extern "C" void MenuToggle() {
     g_menu_open = !g_menu_open;
