@@ -4,6 +4,9 @@
 #include <dlfcn.h>
 #include "dobby.h"
 
+extern "C" void MenuInit();
+extern void DoRender(void* descriptor);
+
 UPtr g_base = 0;
 
 bool g_silent_aim = false;
@@ -39,7 +42,7 @@ float g_spam_timer = 0.0f;
 bool g_hwid_spoof = false;
 bool g_bypass_actk = true;
 
-bool g_menu_open = false;
+bool g_menu_open = true;
 
 CheatConfig g_config = {};
 
@@ -59,6 +62,7 @@ static void* g_real_sendchat = 0;
 static void* g_real_hwid = 0;
 static void* g_real_wallhack = 0;
 static void* g_real_shootraycast = 0;
+static void* g_real_camera_render = 0;
 
 void* g_player_list = 0;
 int g_player_count = 0;
@@ -288,6 +292,13 @@ void DetourShootRaycastModule() {
     }
 }
 
+void DetourCameraRender(void* camera, void* descriptor) {
+    ((Camera_Render_t)g_real_camera_render)(camera, descriptor);
+    if (g_menu_open && descriptor) {
+        DoRender(descriptor);
+    }
+}
+
 void Config_Load() {
     FILE* f = fopen("/var/mobile/Containers/Data/Application/CounterFlame/config.cfg", "rb");
     if (!f) return;
@@ -356,52 +367,43 @@ void InstallAllHooks(UPtr base) {
     g_base = base;
     Config_Load();
     srand((U32)time(0));
+    MenuInit();
 
     UPtr addr;
 
     FindOffsetByName("FirePellets", &addr);
     g_real_firepellets = (void*)addr;
-    if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
-        printf("[!] DobbyHook failed: FirePellets\n");
-    }
+    DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets);
 
     FindOffsetByName("Transform_set_rotation", &addr);
     g_real_setrotation = (void*)addr;
-    if (DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation) != 0) {
-        printf("[!] DobbyHook failed: Transform_set_rotation\n");
-    }
+    DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation);
 
     FindOffsetByName("Input_GetButton", &addr);
     g_real_getbutton = (void*)addr;
-    if (DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton) != 0) {
-        printf("[!] DobbyHook failed: Input_GetButton\n");
-    }
+    DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton);
 
     FindOffsetByName("SendChatMessage", &addr);
     g_real_sendchat = (void*)addr;
-    if (DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat) != 0) {
-        printf("[!] DobbyHook failed: SendChatMessage\n");
-    }
+    DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat);
 
     FindOffsetByName("SystemInfo_deviceUniqueIdentifier", &addr);
     g_real_hwid = (void*)addr;
-    if (DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid) != 0) {
-        printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier\n");
-    }
+    DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid);
 
     if (g_bypass_actk) {
         FindOffsetByName("WallHackDetector_StartDetection", &addr);
         g_real_wallhack = (void*)addr;
-        if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
-            printf("[!] DobbyHook failed: WallHackDetector_StartDetection\n");
-        }
+        DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack);
 
         FindOffsetByName("ShootRaycastModule", &addr);
         g_real_shootraycast = (void*)addr;
-        if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
-            printf("[!] DobbyHook failed: ShootRaycastModule\n");
-        }
+        DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast);
     }
+
+    FindOffsetByName("Camera_Render", &addr);
+    g_real_camera_render = (void*)addr;
+    DobbyHook((void*)addr, (void*)DetourCameraRender, (void**)&g_real_camera_render);
 
     UpdatePlayerList();
 }
