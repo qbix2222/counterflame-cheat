@@ -235,6 +235,7 @@ typedef void (*SendChatMessage_t)(const char*);
 typedef const char* (*GetDeviceUniqueIdentifier_t)();
 typedef void* (*WallHackDetector_t)(void*, Vec3);
 typedef void (*ShootRaycastModule_t)();
+typedef void (*Camera_Render_t)(void*, void*);
 
 typedef uint32_t (*SetFloat_t)(void*, const char*, F32);
 typedef uint32_t (*SetColor_t)(void*, const char*, Color);
@@ -262,6 +263,7 @@ static Offset g_offsets[] = {
     {"RemoveAllVisible", 0x15C9BF0},
     {"WorldToScreenPoint", 0x2B73E5C},
     {"Camera_main", 0x2B741F0},
+    {"Camera_Render", 0x2BA2D4C},
     {"Transform_position", 0x2BB4894},
     {"Transform_set_rotation", 0x2BB4B58},
     {"Transform_set_eulerAngles", 0x2BB4B1C},
@@ -383,3 +385,7 @@ extern void ZeroSpread(void* weaponParams);
 extern void ApplyNoRecoil(F32* amount);
 extern bool IsPlayerGrounded(void* controller);
 extern void ChatSpamUpdate(F32 dt);
+
+extern "C" void MenuInit();
+extern void MenuRenderFrame();
+extern void DoRender(void* descriptor);
