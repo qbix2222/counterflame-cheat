@@ -2,6 +2,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include "dobby.h"
 
 UPtr g_base = 0;
 
@@ -51,14 +52,6 @@ static const char* g_spam_msgs[] = {
     NULL
 };
 
-static void* g_trampoline_firepellets = 0;
-static void* g_trampoline_setrotation = 0;
-static void* g_trampoline_getbutton = 0;
-static void* g_trampoline_sendchat = 0;
-static void* g_trampoline_hwid = 0;
-static void* g_trampoline_wallhack = 0;
-static void* g_trampoline_shootraycast = 0;
-
 static void* g_real_firepellets = 0;
 static void* g_real_setrotation = 0;
 static void* g_real_getbutton = 0;
@@ -79,50 +72,6 @@ static void FindOffsetByName(const char* name, UPtr* out) {
             return;
         }
     }
-}
-
-static void PatchBytes(void* addr, const U8* data, U32 size) {
-    U32 old;
-    if (mprotect((void*)((UPtr)addr & ~0xFFF), 4096, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) return;
-    memcpy(addr, data, size);
-    __builtin___clear_cache((char*)addr, (char*)addr + size);
-    mprotect((void*)((UPtr)addr & ~0xFFF), 4096, PROT_READ | PROT_EXEC);
-}
-
-static U32 Arm64Branch(UPtr from, UPtr to) {
-    S64 off = (S64)(to - from);
-    if (off % 4 != 0) return 0;
-    U32 imm26 = (U32)((off >> 2) & 0x03FFFFFF);
-    return 0x08000000 | imm26;
-}
-
-static void InstallHook(void* target, void* detour, void** trampoline_out, void** real_out) {
-    U32 orig[4];
-    memcpy(orig, target, 16);
-
-    void* tramp = mmap(0, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
-    U8* t = (U8*)tramp;
-    memcpy(t, orig, 16);
-    t += 16;
-    U32 br = Arm64Branch((UPtr)t, (UPtr)target + 16);
-    memcpy(t, &br, 4);
-
-    mprotect(tramp, 4096, PROT_READ | PROT_EXEC);
-
-    mprotect(target, 16, PROT_READ | PROT_WRITE | PROT_EXEC);
-    U32 b = Arm64Branch((UPtr)target, (UPtr)detour);
-    memcpy(target, &b, 4);
-    for (U32 i = 4; i < 16; i += 4) {
-        U32 nop = 0xD280001F;
-        memcpy((U8*)target + i, &nop, 4);
-    }
-    mprotect(target, 16, PROT_READ | PROT_EXEC);
-
-    __builtin___clear_cache((char*)target, (char*)target + 16);
-    __builtin___clear_cache((char*)tramp, (char*)tramp + 4096);
-
-    if (trampoline_out) *trampoline_out = tramp;
-    if (real_out) *real_out = target;
 }
 
 static void* FindPlayerList() {
@@ -412,38 +361,50 @@ void InstallAllHooks(UPtr base) {
 
     FindOffsetByName("FirePellets", &addr);
     g_real_firepellets = (void*)addr;
-    InstallHook((void*)addr, (void*)DetourFirePellets, &g_trampoline_firepellets, &g_real_firepellets);
+    if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
+        printf("[!] DobbyHook failed: FirePellets\n");
+    }
 
     FindOffsetByName("Transform_set_rotation", &addr);
     g_real_setrotation = (void*)addr;
-    InstallHook((void*)addr, (void*)DetourSetRotation, &g_trampoline_setrotation, &g_real_setrotation);
+    if (DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation) != 0) {
+        printf("[!] DobbyHook failed: Transform_set_rotation\n");
+    }
 
     FindOffsetByName("Input_GetButton", &addr);
     g_real_getbutton = (void*)addr;
-    InstallHook((void*)addr, (void*)DetourGetButton, &g_trampoline_getbutton, &g_real_getbutton);
+    if (DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton) != 0) {
+        printf("[!] DobbyHook failed: Input_GetButton\n");
+    }
 
     FindOffsetByName("SendChatMessage", &addr);
     g_real_sendchat = (void*)addr;
-    InstallHook((void*)addr, (void*)DetourSendChatMessage, &g_trampoline_sendchat, &g_real_sendchat);
+    if (DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat) != 0) {
+        printf("[!] DobbyHook failed: SendChatMessage\n");
+    }
 
     FindOffsetByName("SystemInfo_deviceUniqueIdentifier", &addr);
     g_real_hwid = (void*)addr;
-    InstallHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, &g_trampoline_hwid, &g_real_hwid);
+    if (DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid) != 0) {
+        printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier\n");
+    }
 
     if (g_bypass_actk) {
         FindOffsetByName("WallHackDetector_StartDetection", &addr);
         g_real_wallhack = (void*)addr;
-        InstallHook((void*)addr, (void*)DetourWallHackDetector, &g_trampoline_wallhack, &g_real_wallhack);
+        if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
+            printf("[!] DobbyHook failed: WallHackDetector_StartDetection\n");
+        }
 
         FindOffsetByName("ShootRaycastModule", &addr);
         g_real_shootraycast = (void*)addr;
-        InstallHook((void*)addr, (void*)DetourShootRaycastModule, &g_trampoline_shootraycast, &g_real_shootraycast);
+        if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
+            printf("[!] DobbyHook failed: ShootRaycastModule\n");
+        }
     }
 
     UpdatePlayerList();
 }
 
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    g_base = 0x100000000;
-    InstallAllHooks(g_base);
 }
