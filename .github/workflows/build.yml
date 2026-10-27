@@ -1,0 +1,35 @@
+name: Build CounterFlame Cheat
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone ImGui
+        run: git clone --depth 1 https://github.com/ocornut/imgui.git
+
+      - name: Build dylib (arm64 iOS)
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          clang++ -arch arm64 -isysroot "$SDK" \
+            -I. -I./imgui -I./imgui/backends \
+            -framework Metal -framework QuartzCore -framework UIKit -framework Foundation \
+            -std=c++20 -O2 -fvisibility=hidden -shared \
+            cheat_src/cheat.cpp cheat_src/menu.cpp cheat_src/main.cpp \
+            imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp \
+            -x objective-c++ imgui/backends/imgui_impl_metal.cpp \
+            -o CounterFlameCheat.dylib
+
+      - name: Upload dylib artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: counterflame-cheat-dylib
+          path: CounterFlameCheat.dylib
+          retention-days: 7
