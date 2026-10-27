@@ -336,6 +336,33 @@ extern int g_player_count;
 extern void* g_local_player;
 extern void* g_camera;
 
+struct CheatConfig {
+    bool silent_aim;
+    float fov;
+    int target_bone;
+    float max_distance;
+    bool predictive_aim;
+    int prediction_ms;
+    bool spin_enabled;
+    float spin_speed;
+    int spin_mode;
+    bool spin_invert_x;
+    bool esp_boxes;
+    bool esp_names;
+    bool esp_distance;
+    bool chams_enabled;
+    float chams_r;
+    float chams_g;
+    float chams_b;
+    bool no_recoil;
+    bool no_spread;
+    bool bunnyhop;
+    bool chat_spam;
+    float spam_interval;
+    bool hwid_spoof;
+    bool bypass_actk;
+};
+
 extern CheatConfig g_config;
 
 void Config_Load();
