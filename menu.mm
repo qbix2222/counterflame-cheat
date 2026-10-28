@@ -10,6 +10,8 @@ extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
 
+static void MenuRender();
+
 static bool g_menu_initialized = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
@@ -26,7 +28,6 @@ extern "C" void MenuInit() {
     io.IniFilename = NULL;
     io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     ImGui::StyleColorsDark();
 

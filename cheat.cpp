@@ -124,8 +124,7 @@ Vec3 GetPlayerPosition(void* player) {
 
 Vec3 GetCameraForward() {
     if (!g_camera) return V3(0,0,1);
-    Transform* tr = (Transform*)((Camera*)g_camera)->transform;
-    return ((Transform_GetForward_t)(g_base + 0x2BA2D4C))(tr);
+    return ((Transform_GetForward_t)(g_base + 0x2BA2D4C))(g_camera);
 }
 
 Vec3 WorldToScreenPoint(Vec3 world) {
@@ -233,7 +232,9 @@ void DetourSetRotation(void* transform, Quat value) {
         F32 new_y = sinf(rad);
         F32 new_w = cosf(rad);
         if (g_spin_invert_x) value.x = -value.x;
-        ((Transform_SetRotation_t)g_real_setrotation)(transform, V3(new_y, 0, 0));
+        value.y = new_y;
+        value.w = new_w;
+        ((Transform_SetRotation_t)g_real_setrotation)(transform, value);
         return;
     }
     ((Transform_SetRotation_t)g_real_setrotation)(transform, value);
@@ -247,7 +248,7 @@ bool DetourGetButton(const char* button) {
             if (IsPlayerGrounded(tr)) return true;
         }
     }
-    return ((Input_GetButton_t)g_real_getbutton)(button);
+    return ((Input_GetButton_t)g_real_getbutton)((void*)button);
 }
 
 void DetourSendChatMessage(void* message) {
@@ -272,7 +273,7 @@ const char* DetourGetDeviceUniqueIdentifier() {
         snprintf(buf, 64, "SPOOFED_%08X", rand());
         return buf;
     }
-    return ((GetDeviceUID_t)g_real_hwid)();
+    return (const char*)((GetDeviceUID_t)g_real_hwid)();
 }
 
 void DetourWallHackDetector(void* callback, Vec3 spawnPos) {
