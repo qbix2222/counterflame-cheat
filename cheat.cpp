@@ -8,6 +8,9 @@ extern "C" void MenuInit();
 
 UPtr g_base = 0;
 
+extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
+id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor = nil;
+
 bool  g_silent_aim = false;
 float g_fov = 25.0f;
 int   g_target_bone = 0;
@@ -42,7 +45,6 @@ bool  g_bypass_actk = true;
 bool  g_bypass_version = true;
 bool  g_bypass_rootdetect = true;
 
-/* Skin changer */
 bool  g_skin_changer_enabled = false;
 int   g_skin_id = 1;
 int   g_skin_seed = 1337;
@@ -51,6 +53,18 @@ int   g_stattrak_value = 1337;
 bool  g_skin_update_players = true;
 
 bool  g_menu_open = false;
+bool  g_menu_visible = false;
+float g_menu_slide_offset = 0.0f;
+bool  g_menu_toggle_btn = true;
+
+bool  g_menu_tweaks_enabled = false;
+float g_menu_opacity = 1.0f;
+float g_menu_scale = 1.0f;
+int   g_menu_position = 0;
+float g_menu_anim_speed = 8.0f;
+int   g_menu_font_size = 14;
+ImVec4 g_menu_color = ImVec4(0.10f, 0.10f, 0.12f, 0.98f);
+ImVec4 g_menu_accent_color = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
 
 CheatConfig g_config = {};
 
@@ -344,7 +358,6 @@ const char* DetourScarletVersion_GetVersion() {
 
 void DetourPublishLook(void* weaponParams, void* skin, void* stickers, int seed) {
     if (g_skin_changer_enabled && g_skin_update_players) {
-        // Apply custom skin to all players via PublishLook
         char customSkin[64];
         snprintf(customSkin, sizeof(customSkin), "skin_%d", g_skin_id);
         ((PublishLook_t)g_real_publishlook)(weaponParams, customSkin, stickers, g_skin_seed);

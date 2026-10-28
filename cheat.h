@@ -24,11 +24,7 @@ struct Vec3  { F32 x, y, z; };
 struct Quat  { F32 x, y, z, w; };
 struct Color { F32 r, g, b, a; };
 
-/* ---------- Хелперы ---------- */
-
 static inline Vec3 V3(F32 x, F32 y, F32 z) { Vec3 v{ x,y,z }; return v; }
-
-/* ---------- Игровые структуры (из Il2CppDumper dump.cs) ---------- */
 
 struct Transform {
     UPtr klass;
@@ -117,8 +113,6 @@ struct RaycastHit {
     U32  layer;
 };
 
-/* ---------- Сигнатуры игровых методов ---------- */
-
 typedef void*   (*GameObject_Find_t)(void* name);
 typedef void*   (*GetComponent_t)(void* go, void* type);
 typedef Vec3    (*Transform_GetPosition_t)(void* tr);
@@ -139,18 +133,14 @@ typedef const char* (*ScarletVersion_GetVersion_t)();
 typedef void    (*ScarletVersion_cctor_t)();
 typedef void    (*ApkHashChecker_ctor_t)();
 
-/* Skin changer signatures */
 typedef void    (*PublishLook_t)(void* weaponParams, void* skin, void* stickers, int seed);
 typedef void    (*SetSkin_t)(void* weaponParams, void* skin, void* stattrak, bool isPickup, void* stickers, int seed, int owner);
 typedef void    (*ApplySkin_t)(void* weaponParams, void* skin, void* stattrak, void* stickers, int seed, int generation);
 typedef void    (*ApplyStickers_t)(int index, void* weapon, void* weaponParams, void* stickers);
 
-/* ---------- Таблица RVA (из unpacked/il2cpp_dump/dump.cs) ---------- */
-
 struct Offset { const char* name; UPtr rva; };
 
 static const Offset g_offsets[] = {
-    /* --- Читы --- */
     { "FirePellets",                       0x12783E4 },
     { "PlayerDamage",                      0x12796AC },
     { "AddVisible",                        0x15C9670 },
@@ -163,8 +153,6 @@ static const Offset g_offsets[] = {
     { "CharacterController_isGrounded",    0x2BFCC04 },
     { "SendChatMessage",                   0x158D6B0 },
     { "SystemInfo_deviceUniqueIdentifier", 0x2BB19D8 },
-
-    /* --- Античит (обход) --- */
     { "WallHackDetector_StartDetection",   0x1234B94 },
     { "ShootRaycastModule",                0x1239F20 },
     { "RootDetect_Start",                  0x140ED60 },
@@ -176,8 +164,6 @@ static const Offset g_offsets[] = {
     { "ScarletVersion_GetVersion",         0x13F00CC },
     { "GameObject_Find",                   0x2BAB388 },
     { "Component_GetComponent",            0x2BAA268 },
-
-    /* --- Скин ченджер --- */
     { "PublishLook",                       0x1275CBC },
     { "SetSkin_Full",                      0x12727E0 },
     { "ApplySkin",                         0x12759E4 },
@@ -186,8 +172,6 @@ static const Offset g_offsets[] = {
     { "SetInventory",                      0x146F390 },
     { 0, 0 }
 };
-
-/* ---------- Состояние чита ---------- */
 
 extern UPtr g_base;
 
@@ -223,7 +207,6 @@ extern bool  g_bypass_actk;
 extern bool  g_bypass_version;
 extern bool  g_bypass_rootdetect;
 
-/* Skin changer settings */
 extern bool  g_skin_changer_enabled;
 extern int   g_skin_id;
 extern int   g_skin_seed;
@@ -232,45 +215,17 @@ extern int   g_stattrak_value;
 extern bool  g_skin_update_players;
 
 extern bool  g_menu_open;
-
-struct CheatConfig {
-    bool  silent_aim;
-    float fov;
-    int   target_bone;
-    float max_distance;
-    bool  predictive_aim;
-    int   prediction_ms;
-    bool  spin_enabled;
-    float spin_speed;
-    int   spin_mode;
-    bool  spin_invert_x;
-    bool  esp_boxes;
-    bool  esp_names;
-    bool  esp_distance;
-    bool  chams_enabled;
-    float chams_r;
-    float chams_g;
-    float chams_b;
-    bool  no_recoil;
-    bool  no_spread;
-    bool  bunnyhop;
-    bool  chat_spam;
-    float spam_interval;
-    bool  hwid_spoof;
-    bool  bypass_actk;
-    bool  bypass_version;
-    bool  bypass_rootdetect;
-    bool  skin_changer_enabled;
-    int   skin_id;
-    int   skin_seed;
-    bool  skin_stattrak;
-    int   stattrak_value;
-    bool  skin_update_players;
-};
+extern bool  g_menu_visible;
+extern float g_menu_slide_offset;
+extern bool  g_menu_toggle_btn;
+extern bool  g_menu_tweaks_enabled;
+extern float g_menu_opacity;
+extern float g_menu_scale;
+extern int   g_menu_position;
+extern float g_menu_anim_speed;
+extern int   g_menu_font_size;
 
 extern CheatConfig g_config;
-
-/* ---------- Публичный API ---------- */
 
 void InstallAllHooks(UPtr base);
 void Config_Load();
@@ -286,12 +241,12 @@ Vec3  GetCameraForward();
 Vec3  WorldToScreenPoint(Vec3 world);
 float Distance3D(Vec3 a, Vec3 b);
 void  ChatSpamUpdate(F32 dt);
+void  ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
 
-/* Skin changer API */
-void ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
-
-/* Menu (реализовано в menu.mm) */
 extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
+extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
+extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
+extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
