@@ -42,6 +42,14 @@ bool  g_bypass_actk = true;
 bool  g_bypass_version = true;
 bool  g_bypass_rootdetect = true;
 
+/* Skin changer */
+bool  g_skin_changer_enabled = false;
+int   g_skin_id = 1;
+int   g_skin_seed = 1337;
+bool  g_skin_stattrak = true;
+int   g_stattrak_value = 1337;
+bool  g_skin_update_players = true;
+
 bool  g_menu_open = false;
 
 CheatConfig g_config = {};
@@ -52,6 +60,7 @@ static const char* g_spam_msgs[] = {
     "Ваш аккаунт виден",
     "ESP и сайлент аим включены",
     "Антибан активен",
+    "Скин ченджер активен",
     NULL
 };
 
@@ -68,6 +77,7 @@ static void* g_real_sessionguard_revoke = 0;
 static void* g_real_sessionguard_reset = 0;
 static void* g_real_scarletversion_cctor = 0;
 static void* g_real_scarletversion_getversion = 0;
+static void* g_real_publishlook = 0;
 
 void* g_player_list = 0;
 int   g_player_count = 0;
@@ -288,7 +298,6 @@ void DetourWallHackDetector(void* callback, Vec3 spawnPos) {
     if (!g_bypass_actk) {
         ((WallHackDetector_t)g_real_wallhack)(callback, spawnPos);
     }
-    // Если обход включен — просто не вызываем оригинал (NOP)
 }
 
 void DetourShootRaycastModule() {
@@ -297,29 +306,24 @@ void DetourShootRaycastModule() {
     }
 }
 
-// --- АНТИ-БАН: RootDetect.Checkroot — всегда возвращаем false (не обнаружен) ---
 bool DetourRootDetect_Checkroot() {
     if (g_bypass_rootdetect) {
-        return false;  // Античит не обнаруживает джейлбрейк/рут
+        return false;
     }
     return ((RootDetect_Checkroot_t)g_real_rootdetect_checkroot)();
 }
 
-// --- АНТИ-БАН: ApkHashChecker.ctor — пустой конструктор (не проверяем хеш клиента) ---
 void DetourApkHashChecker_ctor() {
-    // Ничего не делаем — обходим проверку хеша APK
+    // Nothing - bypass hash check
 }
 
-// --- АНТИ-БАН: SessionGuard.Revoke — не отзываем сессию ---
 void DetourSessionGuard_Revoke(const char* reason) {
     if (g_bypass_actk) {
-        // Игнорируем отзыв сессии
         return;
     }
     ((SessionGuard_Revoke_t)g_real_sessionguard_revoke)(reason);
 }
 
-// --- АНТИ-БАН: SessionGuard.Reset — не сбрасываем сессию ---
 void DetourSessionGuard_Reset() {
     if (g_bypass_actk) {
         return;
@@ -327,20 +331,34 @@ void DetourSessionGuard_Reset() {
     ((SessionGuard_Reset_t)g_real_sessionguard_reset)();
 }
 
-// --- АНТИ-БАН: ScarletVersion.cctor — не инициализируем проверку версии ---
 void DetourScarletVersion_cctor() {
     if (g_bypass_version) {
-        return;  // Не запускаем проверку версии игры
+        return;
     }
     ((ScarletVersion_cctor_t)g_real_scarletversion_cctor)();
 }
 
-// --- АНТИ-БАН: ScarletVersion.GetVersion — возвращаем актуальную версию ---
 const char* DetourScarletVersion_GetVersion() {
     if (g_bypass_version) {
-        return "1.3.0.1";  // Возвращаем актуальную версию, чтобы сервер не блокировал
+        return "1.3.0.1";
     }
     return ((ScarletVersion_GetVersion_t)g_real_scarletversion_getversion)();
+}
+
+void DetourPublishLook(void* weaponParams, void* skin, void* stickers, int seed) {
+    if (g_skin_changer_enabled && g_skin_update_players) {
+        // Apply custom skin to all players via PublishLook
+        char customSkin[64];
+        snprintf(customSkin, sizeof(customSkin), "skin_%d", g_skin_id);
+        ((PublishLook_t)g_real_publishlook)(weaponParams, customSkin, stickers, g_skin_seed);
+        return;
+    }
+    ((PublishLook_t)g_real_publishlook)(weaponParams, skin, stickers, seed);
+}
+
+void ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed) {
+    if (!g_skin_changer_enabled) return;
+    ((PublishLook_t)g_real_publishlook)(weapon, (void*)skinName, stickers, seed);
 }
 
 void Config_Load() {
@@ -375,15 +393,21 @@ void Config_Load() {
     g_bypass_actk = g_config.bypass_actk;
     g_bypass_version = g_config.bypass_version;
     g_bypass_rootdetect = g_config.bypass_rootdetect;
+    g_skin_changer_enabled = g_config.skin_changer_enabled;
+    g_skin_id = g_config.skin_id;
+    g_skin_seed = g_config.skin_seed;
+    g_skin_stattrak = g_config.skin_stattrak;
+    g_stattrak_value = g_config.stattrak_value;
+    g_skin_update_players = g_config.skin_update_players;
 }
 
 void Config_Save() {
     g_config.silent_aim = g_silent_aim;
     g_config.fov = g_fov;
     g_config.target_bone = g_target_bone;
-    g_config.max_distance = g_config.max_distance;
-    g_config.predictive_aim = g_config.predictive_aim;
-    g_config.prediction_ms = g_config.prediction_ms;
+    g_config.max_distance = g_max_distance;
+    g_config.predictive_aim = g_predictive_aim;
+    g_config.prediction_ms = g_prediction_ms;
     g_config.spin_enabled = g_spin_enabled;
     g_config.spin_speed = g_spin_speed;
     g_config.spin_mode = g_spin_mode;
@@ -404,6 +428,12 @@ void Config_Save() {
     g_config.bypass_actk = g_bypass_actk;
     g_config.bypass_version = g_bypass_version;
     g_config.bypass_rootdetect = g_bypass_rootdetect;
+    g_config.skin_changer_enabled = g_skin_changer_enabled;
+    g_config.skin_id = g_skin_id;
+    g_config.skin_seed = g_skin_seed;
+    g_config.skin_stattrak = g_skin_stattrak;
+    g_config.stattrak_value = g_stattrak_value;
+    g_config.skin_update_players = g_skin_update_players;
 
     FILE* f = fopen("/var/mobile/Containers/Data/Application/CounterFlame/config.cfg", "wb");
     if (!f) return;
@@ -418,7 +448,6 @@ void InstallAllHooks(UPtr base) {
 
     UPtr addr;
 
-    /* --- Читы --- */
     FindOffsetByName("FirePellets", &addr);
     g_real_firepellets = (void*)addr;
     if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
@@ -449,7 +478,6 @@ void InstallAllHooks(UPtr base) {
         printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier\n");
     }
 
-    /* --- Античит ACTk --- */
     FindOffsetByName("WallHackDetector_StartDetection", &addr);
     g_real_wallhack = (void*)addr;
     if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
@@ -462,7 +490,6 @@ void InstallAllHooks(UPtr base) {
         printf("[!] DobbyHook failed: ShootRaycastModule\n");
     }
 
-    /* --- Анти-БАН --- */
     FindOffsetByName("RootDetect_Checkroot", &addr);
     g_real_rootdetect_checkroot = (void*)addr;
     if (DobbyHook((void*)addr, (void*)DetourRootDetect_Checkroot, (void**)&g_real_rootdetect_checkroot) != 0) {
@@ -499,11 +526,17 @@ void InstallAllHooks(UPtr base) {
         printf("[!] DobbyHook failed: ScarletVersion_GetVersion\n");
     }
 
+    FindOffsetByName("PublishLook", &addr);
+    g_real_publishlook = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourPublishLook, (void**)&g_real_publishlook) != 0) {
+        printf("[!] DobbyHook failed: PublishLook\n");
+    }
+
     UpdatePlayerList();
 }
 
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    g_base = 0x100000000;  // Временно, пока не найден реальный базовый адрес
+    g_base = 0x100000000;
     InstallAllHooks(g_base);
     MenuInit();
 }

@@ -4,8 +4,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-extern "C" void MenuInit();
-
 static UPtr GetModuleBase(const char* name) {
     U32 count = _dyld_image_count();
     for (U32 i = 0; i < count; i++) {
@@ -19,8 +17,8 @@ static UPtr GetModuleBase(const char* name) {
 
 int main(int argc, char** argv) {
     UPtr base = GetModuleBase("UnityFramework");
-    if (!base) base = 0x100000000;
-    InstallAllHooks(base);
-    MenuInit();
+    if (base) {
+        InstallAllHooks(base);
+    }
     return 0;
 }

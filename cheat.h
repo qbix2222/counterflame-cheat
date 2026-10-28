@@ -7,6 +7,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <string>
+#include <vector>
+#include <algorithm>
+#include <random>
 
 typedef uintptr_t UPtr;
 typedef int32_t   S32;
@@ -71,17 +74,49 @@ struct Camera {
 };
 
 struct WeaponParameters {
-    F32 spread;
-    F32 recoil;
-    F32 damage;
-    U32  bulletCount;
-    F32 hipFireAccuracy;
-    F32 movementAccuracy;
-    F32 jumpAccuracy;
-    F32 crouchAccuracy;
-    F32 proneAccuracy;
-    U8  pad[128];
+    UPtr klass;
+    UPtr monitor;
+    int    weaponId;
+    int    skinId;
+    int    stattrak;
+    int    seed;
+    float  spread;
+    float  recoil;
+    float  damage;
+    U32    bulletCount;
+    float  fireRate;
+    U32    ammoPerShot;
+    U32    currentAmmo;
+    U32    reserveAmmo;
+    F32    reloadTime;
+    F32    hipFireAccuracy;
+    F32    movementAccuracy;
+    U8     pad[128];
 };
+
+struct StickerData {
+    UPtr klass;
+    UPtr monitor;
+    int    stickerId;
+    int    slot;
+    float  wear;
+    U8     pad[64];
+};
+
+struct RaycastHit {
+    Vec3 point;
+    Vec3 normal;
+    UPtr collider;
+    UPtr rigidbody;
+    UPtr transform;
+    U32  triangleIndex;
+    F32  distance;
+    Vec2 textureCoord;
+    Vec2 lightmapCoord;
+    U32  layer;
+};
+
+struct Vec2 { F32 x, y; };
 
 /* ---------- Сигнатуры игровых методов ---------- */
 
@@ -104,6 +139,12 @@ typedef void    (*SessionGuard_Reset_t)();
 typedef const char* (*ScarletVersion_GetVersion_t)();
 typedef void    (*ScarletVersion_cctor_t)();
 typedef void    (*ApkHashChecker_ctor_t)();
+
+/* Skin changer signatures */
+typedef void    (*PublishLook_t)(void* weaponParams, void* skin, void* stickers, int seed);
+typedef void    (*SetSkin_t)(void* weaponParams, void* skin, void* stattrak, bool isPickup, void* stickers, int seed, int owner);
+typedef void    (*ApplySkin_t)(void* weaponParams, void* skin, void* stattrak, void* stickers, int seed, int generation);
+typedef void    (*ApplyStickers_t)(int index, void* weapon, void* weaponParams, void* stickers);
 
 /* ---------- Таблица RVA (из unpacked/il2cpp_dump/dump.cs) ---------- */
 
@@ -136,6 +177,14 @@ static const Offset g_offsets[] = {
     { "ScarletVersion_GetVersion",         0x13F00CC },
     { "GameObject_Find",                   0x2BAB388 },
     { "Component_GetComponent",            0x2BAA268 },
+
+    /* --- Скин ченджер --- */
+    { "PublishLook",                       0x1275CBC },
+    { "SetSkin_Full",                      0x12727E0 },
+    { "ApplySkin",                         0x12759E4 },
+    { "SetSkin_Simple",                    0x1276368 },
+    { "ApplyStickers",                     0x143057C },
+    { "SetInventory",                      0x146F390 },
     { 0, 0 }
 };
 
@@ -175,6 +224,14 @@ extern bool  g_bypass_actk;
 extern bool  g_bypass_version;
 extern bool  g_bypass_rootdetect;
 
+/* Skin changer settings */
+extern bool  g_skin_changer_enabled;
+extern int   g_skin_id;
+extern int   g_skin_seed;
+extern bool  g_skin_stattrak;
+extern int   g_stattrak_value;
+extern bool  g_skin_update_players;
+
 extern bool  g_menu_open;
 
 struct CheatConfig {
@@ -204,6 +261,12 @@ struct CheatConfig {
     bool  bypass_actk;
     bool  bypass_version;
     bool  bypass_rootdetect;
+    bool  skin_changer_enabled;
+    int   skin_id;
+    int   skin_seed;
+    bool  skin_stattrak;
+    int   stattrak_value;
+    bool  skin_update_players;
 };
 
 extern CheatConfig g_config;
@@ -225,7 +288,10 @@ Vec3  WorldToScreenPoint(Vec3 world);
 float Distance3D(Vec3 a, Vec3 b);
 void  ChatSpamUpdate(F32 dt);
 
-/* Меню (реализовано в menu.mm) */
+/* Skin changer API */
+void ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
+
+/* Menu (реализовано в menu.mm) */
 extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
