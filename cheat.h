@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <random>
 
+#import <Metal/Metal.h>
+
 typedef uintptr_t UPtr;
 typedef int32_t   S32;
 typedef uint32_t  U32;
@@ -218,6 +220,7 @@ extern bool  g_menu_open;
 extern bool  g_menu_visible;
 extern float g_menu_slide_offset;
 extern bool  g_menu_toggle_btn;
+extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
 extern bool  g_menu_tweaks_enabled;
 extern float g_menu_opacity;
 extern float g_menu_scale;

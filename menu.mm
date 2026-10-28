@@ -1,4 +1,4 @@
-#include "cheat.h"
+﻿#include "cheat.h"
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -12,7 +12,7 @@ extern "C" void MenuSetOpen(bool open);
 extern "C" void MenuRender(float dt);
 
 /* ---------- Menu state ---------- */
-static bool g_menu_initialized = false;
+static bool  g_menu_initialized = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 
@@ -125,10 +125,15 @@ extern "C" void MenuRender(float dt) {
 
     if (!g_menu_visible && g_menu_slide < 0.001f) return;
 
+    // Get render pass descriptor from global
+    extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
     if (!g_currentRenderPassDescriptor) return;
 
     id<MTLCommandBuffer> commandBuffer = [g_metal_queue commandBuffer];
     if (!commandBuffer) return;
+
+    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:g_currentRenderPassDescriptor];
+    if (!encoder) return;
 
     ImGui_ImplMetal_NewFrame(g_currentRenderPassDescriptor);
     ImGui::NewFrame();

@@ -1,4 +1,4 @@
-#include "cheat.h"
+﻿#include "cheat.h"
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -70,11 +70,11 @@ CheatConfig g_config = {};
 
 static const char* g_spam_msgs[] = {
     "CounterFlame Internal",
-    "Чит активирован",
-    "Ваш аккаунт виден",
-    "ESP и сайлент аим включены",
-    "Антибан активен",
-    "Скин ченджер активен",
+    "Р§РёС‚ Р°РєС‚РёРІРёСЂРѕРІР°РЅ",
+    "Р’Р°С€ Р°РєРєР°СѓРЅС‚ РІРёРґРµРЅ",
+    "ESP Рё СЃР°Р№Р»РµРЅС‚ Р°РёРј РІРєР»СЋС‡РµРЅС‹",
+    "РђРЅС‚РёР±Р°РЅ Р°РєС‚РёРІРµРЅ",
+    "РЎРєРёРЅ С‡РµРЅРґР¶РµСЂ Р°РєС‚РёРІРµРЅ",
     NULL
 };
 
@@ -550,3 +550,5 @@ extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
     InstallAllHooks(g_base);
     MenuInit();
 }
+
+
