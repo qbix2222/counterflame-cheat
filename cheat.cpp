@@ -7,9 +7,7 @@
 extern "C" void MenuInit();
 
 UPtr g_base = 0;
-
-extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
-id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor = nil;
+void* g_currentRenderPassDescriptor = nullptr;
 
 bool  g_silent_aim = false;
 float g_fov = 25.0f;
@@ -70,11 +68,11 @@ CheatConfig g_config = {};
 
 static const char* g_spam_msgs[] = {
     "CounterFlame Internal",
-    "Р§РёС‚ Р°РєС‚РёРІРёСЂРѕРІР°РЅ",
-    "Р’Р°С€ Р°РєРєР°СѓРЅС‚ РІРёРґРµРЅ",
-    "ESP Рё СЃР°Р№Р»РµРЅС‚ Р°РёРј РІРєР»СЋС‡РµРЅС‹",
-    "РђРЅС‚РёР±Р°РЅ Р°РєС‚РёРІРµРЅ",
-    "РЎРєРёРЅ С‡РµРЅРґР¶РµСЂ Р°РєС‚РёРІРµРЅ",
+    "Чит активирован",
+    "Ваш аккаунт виден",
+    "ESP и сайлент аим включены",
+    "Антибан активен",
+    "Скин ченджер активен",
     NULL
 };
 
@@ -403,12 +401,6 @@ void Config_Load() {
     g_bypass_actk = g_config.bypass_actk;
     g_bypass_version = g_config.bypass_version;
     g_bypass_rootdetect = g_config.bypass_rootdetect;
-    g_skin_changer_enabled = g_config.skin_changer_enabled;
-    g_skin_id = g_config.skin_id;
-    g_skin_seed = g_config.skin_seed;
-    g_skin_stattrak = g_config.skin_stattrak;
-    g_stattrak_value = g_config.stattrak_value;
-    g_skin_update_players = g_config.skin_update_players;
 }
 
 void Config_Save() {
@@ -550,5 +542,3 @@ extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
     InstallAllHooks(g_base);
     MenuInit();
 }
-
-

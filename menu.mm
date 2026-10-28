@@ -16,7 +16,7 @@ static bool g_menu_initialized = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 
-static bool  g_menu_visible = false;
+extern bool g_menu_visible;
 static float g_menu_slide   = 0.0f;
 static float g_menu_target  = 0.0f;
 
@@ -28,11 +28,11 @@ static ImVec4 g_panel_color    = ImVec4(0.10f, 0.10f, 0.12f, 0.98f);
 static ImVec4 g_text_color     = ImVec4(0.95f, 0.95f, 0.97f, 1.00f);
 static ImVec4 g_text_dim_color = ImVec4(0.60f, 0.60f, 0.65f, 1.00f);
 
-static int   g_menu_font_size   = 14;
-static float g_menu_opacity     = 1.0f;
-static float g_menu_scale       = 1.0f;
-static int   g_menu_position    = 0;
-static float g_menu_anim_speed  = 8.0f;
+extern int   g_menu_font_size;
+extern float g_menu_opacity;
+extern float g_menu_scale;
+extern int   g_menu_position;
+extern float g_menu_anim_speed;
 
 /* ---------- Forward declarations ---------- */
 static void DrawStyledCheckbox(const char* label, bool* value);
@@ -126,7 +126,6 @@ extern "C" void MenuRender(float dt) {
     if (!g_menu_visible && g_menu_slide < 0.001f) return;
 
     // Get render pass descriptor from global
-    extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
     if (!g_currentRenderPassDescriptor) return;
 
     id<MTLCommandBuffer> commandBuffer = [g_metal_queue commandBuffer];
@@ -169,8 +168,7 @@ extern "C" void MenuRender(float dt) {
     const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin" };
     int tabCount = 8;
     float tabW = (winSize.x - 32.0f) / tabCount;
-    float tabY = winPos.y + 34.0f;
-    float tabH = 36.0f;
+    float tabH = 40.0f;
 
     for (int i = 0; i < tabCount; i++) {
         ImVec2 tp(winPos.x + 16.0f + i * tabW, winPos.y + 30.0f);

@@ -176,12 +176,12 @@ static const Offset g_offsets[] = {
 struct CheatConfig {
     bool  silent_aim;
     float fov;
-    int   g_target_bone;
-    float g_max_distance;
-    bool  g_predictive_aim;
-    int   g_prediction_ms;
-    bool  g_spin_enabled;
-    float g_spin_speed;
+    int   target_bone;
+    float max_distance;
+    bool  predictive_aim;
+    int   prediction_ms;
+    bool  spin_enabled;
+    float spin_speed;
     int   g_spin_mode;
     bool  g_spin_invert_x;
     bool  g_esp_boxes;
@@ -191,7 +191,7 @@ struct CheatConfig {
     float g_chams_r;
     float g_chams_g;
     float g_chams_b;
-    bool  g_no_recoil;
+    bool  no_recoil;
     bool  g_no_spread;
     bool  g_bunnyhop;
     bool  g_chat_spam;
@@ -206,16 +206,6 @@ struct CheatConfig {
     bool  g_skin_stattrak;
     int   g_stattrak_value;
     bool  g_skin_update_players;
-    extern bool  g_menu_open;
-    extern bool  g_menu_visible;
-    extern float g_menu_slide_offset;
-    extern bool  g_menu_toggle_btn;
-    extern bool  g_menu_tweaks_enabled;
-    extern float g_menu_opacity;
-    extern float g_menu_scale;
-    extern int   g_menu_position;
-    extern float g_menu_anim_speed;
-    extern int   g_menu_font_size;
 };
 
 extern UPtr g_base;
@@ -292,5 +282,5 @@ extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
-void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
-extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
+extern "C" void MenuRender(float dt);
+extern void* g_currentRenderPassDescriptor;
