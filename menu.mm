@@ -9,16 +9,16 @@ extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
-extern "C" void MenuRender(float dt);
+extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
 
 /* ---------- Menu state ---------- */
-static bool  g_menu_initialized = false;
+static bool g_menu_initialized = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 
-static bool  g_menu_visible = false;
-static float g_menu_slide   = 0.0f;
-static float g_menu_target  = 0.0f;
+bool g_menu_visible = false;
+float g_menu_slide   = 0.0f;
+float g_menu_target  = 0.0f;
 
 /* ---------- Menu theme (tweakable) ---------- */
 static ImVec4 g_accent_color   = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
@@ -115,7 +115,7 @@ static void DrawStyledCheckbox(const char* label, bool* value) {
     }
 }
 
-extern "C" void MenuRender(float dt) {
+extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor) {
     if (!g_menu_initialized) return;
 
     // Update animation
@@ -125,15 +125,10 @@ extern "C" void MenuRender(float dt) {
 
     if (!g_menu_visible && g_menu_slide < 0.001f) return;
 
-    // Get render pass descriptor from global
-    extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
     if (!g_currentRenderPassDescriptor) return;
 
     id<MTLCommandBuffer> commandBuffer = [g_metal_queue commandBuffer];
     if (!commandBuffer) return;
-
-    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:g_currentRenderPassDescriptor];
-    if (!encoder) return;
 
     ImGui_ImplMetal_NewFrame(g_currentRenderPassDescriptor);
     ImGui::NewFrame();
@@ -172,8 +167,6 @@ extern "C" void MenuRender(float dt) {
     const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin" };
     int tabCount = 8;
     float tabW = (winSize.x - 32.0f) / tabCount;
-    float tabY = winPos.y + 34.0f;
-    float tabH = 36.0f;
 
     for (int i = 0; i < tabCount; i++) {
         ImVec2 tp(winPos.x + 16.0f + i * tabW, winPos.y + 30.0f);
