@@ -282,5 +282,5 @@ extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
-extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
+extern "C" void MenuRender(float dt, void* renderPassDescriptor);
 extern void* g_currentRenderPassDescriptor;
