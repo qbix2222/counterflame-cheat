@@ -118,7 +118,7 @@ static void DrawStyledCheckbox(const char* label, bool* value) {
 extern "C" void MenuRender(float dt, void* renderPassDescriptor) {
     if (!g_menu_initialized) return;
 
-    id<MTLRenderPassDescriptor> rpd = (id<MTLRenderPassDescriptor>)renderPassDescriptor;
+    MTLRenderPassDescriptor* rpd = (MTLRenderPassDescriptor*)renderPassDescriptor;
 
     // Update animation
     float target = g_menu_visible ? 1.0f : 0.0f;
