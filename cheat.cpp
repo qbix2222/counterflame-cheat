@@ -403,7 +403,7 @@ void Config_Save() {
     g_config.fov = g_fov;
     g_config.target_bone = g_target_bone;
     g_config.max_distance = g_max_distance;
-    g_config.predictive_aim = g_predictive_aim;
+    g_config.predictive_aim = g_config.predictive_aim;
     g_config.prediction_ms = g_prediction_ms;
     g_config.spin_enabled = g_spin_enabled;
     g_config.spin_speed = g_spin_speed;
