@@ -39,6 +39,8 @@ float g_spam_timer = 0.0f;
 
 bool  g_hwid_spoof = false;
 bool  g_bypass_actk = true;
+bool  g_bypass_version = true;
+bool  g_bypass_rootdetect = true;
 
 bool  g_menu_open = false;
 
@@ -60,6 +62,12 @@ static void* g_real_sendchat = 0;
 static void* g_real_hwid = 0;
 static void* g_real_wallhack = 0;
 static void* g_real_shootraycast = 0;
+static void* g_real_rootdetect_checkroot = 0;
+static void* g_real_apkhash_ctor = 0;
+static void* g_real_sessionguard_revoke = 0;
+static void* g_real_sessionguard_reset = 0;
+static void* g_real_scarletversion_cctor = 0;
+static void* g_real_scarletversion_getversion = 0;
 
 void* g_player_list = 0;
 int   g_player_count = 0;
@@ -280,12 +288,59 @@ void DetourWallHackDetector(void* callback, Vec3 spawnPos) {
     if (!g_bypass_actk) {
         ((WallHackDetector_t)g_real_wallhack)(callback, spawnPos);
     }
+    // Если обход включен — просто не вызываем оригинал (NOP)
 }
 
 void DetourShootRaycastModule() {
     if (!g_bypass_actk) {
         ((ShootRaycastModule_t)g_real_shootraycast)();
     }
+}
+
+// --- АНТИ-БАН: RootDetect.Checkroot — всегда возвращаем false (не обнаружен) ---
+bool DetourRootDetect_Checkroot() {
+    if (g_bypass_rootdetect) {
+        return false;  // Античит не обнаруживает джейлбрейк/рут
+    }
+    return ((RootDetect_Checkroot_t)g_real_rootdetect_checkroot)();
+}
+
+// --- АНТИ-БАН: ApkHashChecker.ctor — пустой конструктор (не проверяем хеш клиента) ---
+void DetourApkHashChecker_ctor() {
+    // Ничего не делаем — обходим проверку хеша APK
+}
+
+// --- АНТИ-БАН: SessionGuard.Revoke — не отзываем сессию ---
+void DetourSessionGuard_Revoke(const char* reason) {
+    if (g_bypass_actk) {
+        // Игнорируем отзыв сессии
+        return;
+    }
+    ((SessionGuard_Revoke_t)g_real_sessionguard_revoke)(reason);
+}
+
+// --- АНТИ-БАН: SessionGuard.Reset — не сбрасываем сессию ---
+void DetourSessionGuard_Reset() {
+    if (g_bypass_actk) {
+        return;
+    }
+    ((SessionGuard_Reset_t)g_real_sessionguard_reset)();
+}
+
+// --- АНТИ-БАН: ScarletVersion.cctor — не инициализируем проверку версии ---
+void DetourScarletVersion_cctor() {
+    if (g_bypass_version) {
+        return;  // Не запускаем проверку версии игры
+    }
+    ((ScarletVersion_cctor_t)g_real_scarletversion_cctor)();
+}
+
+// --- АНТИ-БАН: ScarletVersion.GetVersion — возвращаем актуальную версию ---
+const char* DetourScarletVersion_GetVersion() {
+    if (g_bypass_version) {
+        return "1.3.0.1";  // Возвращаем актуальную версию, чтобы сервер не блокировал
+    }
+    return ((ScarletVersion_GetVersion_t)g_real_scarletversion_getversion)();
 }
 
 void Config_Load() {
@@ -318,6 +373,8 @@ void Config_Load() {
     g_spam_interval = g_config.spam_interval;
     g_hwid_spoof = g_config.hwid_spoof;
     g_bypass_actk = g_config.bypass_actk;
+    g_bypass_version = g_config.bypass_version;
+    g_bypass_rootdetect = g_config.bypass_rootdetect;
 }
 
 void Config_Save() {
@@ -345,6 +402,8 @@ void Config_Save() {
     g_config.spam_interval = g_spam_interval;
     g_config.hwid_spoof = g_hwid_spoof;
     g_config.bypass_actk = g_bypass_actk;
+    g_config.bypass_version = g_bypass_version;
+    g_config.bypass_rootdetect = g_bypass_rootdetect;
 
     FILE* f = fopen("/var/mobile/Containers/Data/Application/CounterFlame/config.cfg", "wb");
     if (!f) return;
@@ -359,6 +418,7 @@ void InstallAllHooks(UPtr base) {
 
     UPtr addr;
 
+    /* --- Читы --- */
     FindOffsetByName("FirePellets", &addr);
     g_real_firepellets = (void*)addr;
     if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
@@ -389,25 +449,61 @@ void InstallAllHooks(UPtr base) {
         printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier\n");
     }
 
-    if (g_bypass_actk) {
-        FindOffsetByName("WallHackDetector_StartDetection", &addr);
-        g_real_wallhack = (void*)addr;
-        if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
-            printf("[!] DobbyHook failed: WallHackDetector_StartDetection\n");
-        }
+    /* --- Античит ACTk --- */
+    FindOffsetByName("WallHackDetector_StartDetection", &addr);
+    g_real_wallhack = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
+        printf("[!] DobbyHook failed: WallHackDetector_StartDetection\n");
+    }
 
-        FindOffsetByName("ShootRaycastModule", &addr);
-        g_real_shootraycast = (void*)addr;
-        if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
-            printf("[!] DobbyHook failed: ShootRaycastModule\n");
-        }
+    FindOffsetByName("ShootRaycastModule", &addr);
+    g_real_shootraycast = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
+        printf("[!] DobbyHook failed: ShootRaycastModule\n");
+    }
+
+    /* --- Анти-БАН --- */
+    FindOffsetByName("RootDetect_Checkroot", &addr);
+    g_real_rootdetect_checkroot = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourRootDetect_Checkroot, (void**)&g_real_rootdetect_checkroot) != 0) {
+        printf("[!] DobbyHook failed: RootDetect_Checkroot\n");
+    }
+
+    FindOffsetByName("ApkHashChecker_ctor", &addr);
+    g_real_apkhash_ctor = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourApkHashChecker_ctor, (void**)&g_real_apkhash_ctor) != 0) {
+        printf("[!] DobbyHook failed: ApkHashChecker_ctor\n");
+    }
+
+    FindOffsetByName("SessionGuard_Revoke", &addr);
+    g_real_sessionguard_revoke = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourSessionGuard_Revoke, (void**)&g_real_sessionguard_revoke) != 0) {
+        printf("[!] DobbyHook failed: SessionGuard_Revoke\n");
+    }
+
+    FindOffsetByName("SessionGuard_Reset", &addr);
+    g_real_sessionguard_reset = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourSessionGuard_Reset, (void**)&g_real_sessionguard_reset) != 0) {
+        printf("[!] DobbyHook failed: SessionGuard_Reset\n");
+    }
+
+    FindOffsetByName("ScarletVersion_cctor", &addr);
+    g_real_scarletversion_cctor = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourScarletVersion_cctor, (void**)&g_real_scarletversion_cctor) != 0) {
+        printf("[!] DobbyHook failed: ScarletVersion_cctor\n");
+    }
+
+    FindOffsetByName("ScarletVersion_GetVersion", &addr);
+    g_real_scarletversion_getversion = (void*)addr;
+    if (DobbyHook((void*)addr, (void*)DetourScarletVersion_GetVersion, (void**)&g_real_scarletversion_getversion) != 0) {
+        printf("[!] DobbyHook failed: ScarletVersion_GetVersion\n");
     }
 
     UpdatePlayerList();
 }
 
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    g_base = 0x100000000;  // временно, пока не найдем реальный базу через main()
+    g_base = 0x100000000;  // Временно, пока не найден реальный базовый адрес
     InstallAllHooks(g_base);
     MenuInit();
 }

@@ -24,7 +24,7 @@ struct Color { F32 r, g, b, a; };
 
 static inline Vec3 V3(F32 x, F32 y, F32 z) { Vec3 v{ x,y,z }; return v; }
 
-/* ---------- Игровые структуры (из Il2CppDumper dump.cs, поля могут смещаться) ---------- */
+/* ---------- Игровые структуры (из Il2CppDumper dump.cs) ---------- */
 
 struct Transform {
     UPtr klass;
@@ -57,10 +57,10 @@ struct Player {
 struct GameController {
     UPtr klass;
     UPtr monitor;
-    UPtr players;      // массив UPtr указателей на Player
+    UPtr players;
     UPtr playerCount;
-    UPtr localPlayer;  // UPtr на Player (local)
-    UPtr camera;       // UPtr на Camera
+    UPtr localPlayer;
+    UPtr camera;
     UPtr pad[16];
 };
 
@@ -83,7 +83,7 @@ struct WeaponParameters {
     U8  pad[128];
 };
 
-/* ---------- Сигнатуры игровых методов (адрес = base + RVA) ---------- */
+/* ---------- Сигнатуры игровых методов ---------- */
 
 typedef void*   (*GameObject_Find_t)(void* name);
 typedef void*   (*GetComponent_t)(void* go, void* type);
@@ -98,28 +98,44 @@ typedef void    (*SendChat_t)(void* msg);
 typedef void*   (*GetDeviceUID_t)();
 typedef void    (*WallHackDetector_t)(void* cb, Vec3 pos);
 typedef void    (*ShootRaycastModule_t)();
+typedef bool    (*RootDetect_Checkroot_t)();
+typedef void    (*SessionGuard_Revoke_t)(const char* reason);
+typedef void    (*SessionGuard_Reset_t)();
+typedef const char* (*ScarletVersion_GetVersion_t)();
+typedef void    (*ScarletVersion_cctor_t)();
+typedef void    (*ApkHashChecker_ctor_t)();
 
 /* ---------- Таблица RVA (из unpacked/il2cpp_dump/dump.cs) ---------- */
 
 struct Offset { const char* name; UPtr rva; };
 
 static const Offset g_offsets[] = {
-    { "FirePellets",                        0x12783E4 },
-    { "PlayerDamage",                       0x12796AC },
-    { "AddVisible",                         0x15C9670 },
-    { "WorldToScreenPoint",                 0x2B73E5C },
-    { "Camera_main",                        0x2B741F0 },
-    { "Transform_get_position",             0x2BB4894 },
-    { "Transform_set_rotation",             0x2BB4B58 },
-    { "Transform_get_forward",              0x2BA2D4C },
-    { "Input_GetButton",                    0x24DCF0C },
-    { "CharacterController_isGrounded",     0x2BFCC04 },
-    { "SendChatMessage",                    0x158D6B0 },
-    { "SystemInfo_deviceUniqueIdentifier",  0x2BB19D8 },
-    { "WallHackDetector_StartDetection",    0x1238D04 },
-    { "ShootRaycastModule",                 0x1239F20 },
-    { "GameObject_Find",                    0x2BAB388 },
-    { "Component_GetComponent",             0x2BAA268 },
+    /* --- Читы --- */
+    { "FirePellets",                       0x12783E4 },
+    { "PlayerDamage",                      0x12796AC },
+    { "AddVisible",                        0x15C9670 },
+    { "WorldToScreenPoint",                0x2B73E5C },
+    { "Camera_main",                       0x2B741F0 },
+    { "Transform_get_position",            0x2BB4894 },
+    { "Transform_set_rotation",            0x2BB4B58 },
+    { "Transform_get_forward",             0x2BA2D4C },
+    { "Input_GetButton",                   0x24DCF0C },
+    { "CharacterController_isGrounded",    0x2BFCC04 },
+    { "SendChatMessage",                   0x158D6B0 },
+    { "SystemInfo_deviceUniqueIdentifier", 0x2BB19D8 },
+
+    /* --- Античит (обход) --- */
+    { "WallHackDetector_StartDetection",   0x1234B94 },
+    { "ShootRaycastModule",                0x1239F20 },
+    { "RootDetect_Start",                  0x140ED60 },
+    { "RootDetect_Checkroot",              0x140EDF0 },
+    { "ApkHashChecker_ctor",               0x126F358 },
+    { "SessionGuard_Revoke",               0x13F00CC },
+    { "SessionGuard_Reset",                0x13F03D4 },
+    { "ScarletVersion_cctor",              0x13F044C },
+    { "ScarletVersion_GetVersion",         0x13F00CC },
+    { "GameObject_Find",                   0x2BAB388 },
+    { "Component_GetComponent",            0x2BAA268 },
     { 0, 0 }
 };
 
@@ -156,6 +172,8 @@ extern float g_spam_interval;
 
 extern bool  g_hwid_spoof;
 extern bool  g_bypass_actk;
+extern bool  g_bypass_version;
+extern bool  g_bypass_rootdetect;
 
 extern bool  g_menu_open;
 
@@ -184,6 +202,8 @@ struct CheatConfig {
     float spam_interval;
     bool  hwid_spoof;
     bool  bypass_actk;
+    bool  bypass_version;
+    bool  bypass_rootdetect;
 };
 
 extern CheatConfig g_config;
