@@ -10,6 +10,9 @@
 #include <vector>
 #include <algorithm>
 #include <random>
+#include <unordered_map>
+
+#include "il2cpp_resolver.h"
 
 typedef uintptr_t UPtr;
 typedef int32_t   S32;
@@ -26,23 +29,43 @@ struct Color { F32 r, g, b, a; };
 
 static inline Vec3 V3(F32 x, F32 y, F32 z) { Vec3 v{ x,y,z }; return v; }
 
-struct Transform {
-    UPtr klass;
-    UPtr monitor;
-    UPtr pad[8];
+struct UnityObject {
+    void* klass;
+    void* monitor;
 };
 
-struct GameObject {
-    UPtr klass;
-    UPtr monitor;
-    UPtr pad[8];
+struct Transform : UnityObject {};
+struct GameObject : UnityObject {};
+struct Camera : UnityObject {};
+
+struct Component : UnityObject {
+    GameObject* GetGameObject() {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Component", "get_gameObject", 0);
+        if (method) return g_il2cpp.Invoke<GameObject*>(method, this);
+        return nullptr;
+    }
+    Transform* GetTransform() {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Component", "get_transform", 0);
+        if (method) return g_il2cpp.Invoke<Transform*>(method, this);
+        return nullptr;
+    }
 };
 
-struct Player {
-    UPtr klass;
-    UPtr monitor;
-    UPtr gameObject;
-    UPtr transform;
+struct Behaviour : Component {
+    bool GetEnabled() {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Behaviour", "get_enabled", 0);
+        if (method) return g_il2cpp.Invoke<bool>(method, this);
+        return false;
+    }
+    void SetEnabled(bool value) {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Behaviour", "set_enabled", 1);
+        if (method) g_il2cpp.Invoke<void>(method, this, value);
+    }
+};
+
+struct MonoBehaviour : Behaviour {};
+
+struct Player : MonoBehaviour {
     UPtr health;
     UPtr maxHealth;
     UPtr team;
@@ -51,28 +74,68 @@ struct Player {
     UPtr isLocal;
     UPtr isAlive;
     UPtr isBot;
-    UPtr pad[16];
-};
-
-struct GameController {
-    UPtr klass;
-    UPtr monitor;
-    UPtr players;
-    UPtr playerCount;
-    UPtr localPlayer;
-    UPtr camera;
-    UPtr pad[16];
-};
-
-struct Camera {
-    UPtr klass;
-    UPtr monitor;
     UPtr pad[8];
+
+    Vec3 GetPosition() {
+        Transform* t = GetTransform();
+        if (!t) return V3(0,0,0);
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Transform", "get_position", 0);
+        if (method) return g_il2cpp.Invoke<Vec3>(method, t);
+        return V3(0,0,0);
+    }
+
+    Vec3 GetForward() {
+        Transform* t = GetTransform();
+        if (!t) return V3(0,0,1);
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Transform", "get_forward", 0);
+        if (method) return g_il2cpp.Invoke<Vec3>(method, t);
+        return V3(0,0,1);
+    }
+
+    void SetRotation(Quat q) {
+        Transform* t = GetTransform();
+        if (!t) return;
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Transform", "set_rotation", 1);
+        if (method) g_il2cpp.Invoke<void>(method, t, q);
+    }
 };
 
-struct WeaponParameters {
-    UPtr klass;
-    UPtr monitor;
+struct Camera : UnityObject {
+    Vec3 WorldToScreenPoint(Vec3 world) {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "WorldToScreenPoint", 1);
+        if (method) return g_il2cpp.Invoke<Vec3>(method, this, world);
+        return V3(0,0,0);
+    }
+
+    Vec3 ScreenToWorldPoint(Vec3 screen) {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "ScreenToWorldPoint", 1);
+        if (method) return g_il2cpp.Invoke<Vec3>(method, this, screen);
+        return V3(0,0,0);
+    }
+
+    static Camera* GetMain() {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
+        if (method) return g_il2cpp.Invoke<Camera*>(method);
+        return nullptr;
+    }
+};
+
+struct GameObject : UnityObject {
+    static GameObject* Find(const char* name) {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "GameObject", "Find", 1);
+        if (method) return g_il2cpp.Invoke<GameObject*>(method, (void*)name);
+        return nullptr;
+    }
+
+    template <typename T>
+    T* GetComponent() {
+        static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "GameObject", "GetComponent", 1);
+        if (method) return g_il2cpp.Invoke<T*>(method, this, g_il2cpp.GetType(typeof(T)));
+        return nullptr;
+    }
+};
+
+struct WeaponParameters : UnityObject {
     int    weaponId;
     int    skinId;
     int    stattrak;
@@ -88,124 +151,60 @@ struct WeaponParameters {
     F32    reloadTime;
     F32    hipFireAccuracy;
     F32    movementAccuracy;
-    U8     pad[128];
 };
 
-struct StickerData {
-    UPtr klass;
-    UPtr monitor;
-    int    stickerId;
-    int    slot;
-    float  wear;
-    U8     pad[64];
-};
+struct GameController : UnityObject {
+    void* players;
+    int   playerCount;
+    Player* localPlayer;
+    Camera* camera;
 
-struct RaycastHit {
-    Vec3 point;
-    Vec3 normal;
-    UPtr collider;
-    UPtr rigidbody;
-    UPtr transform;
-    U32  triangleIndex;
-    F32  distance;
-    Vec2 textureCoord;
-    Vec2 lightmapCoord;
-    U32  layer;
-};
-
-typedef void*   (*GameObject_Find_t)(void* name);
-typedef void*   (*GetComponent_t)(void* go, void* type);
-typedef Vec3    (*Transform_GetPosition_t)(void* tr);
-typedef Vec3    (*Transform_GetForward_t)(void* tr);
-typedef void    (*Transform_SetRotation_t)(void* tr, Quat q);
-typedef Vec3    (*Camera_WorldToScreen_t)(void* cam, Vec3 world);
-typedef bool    (*Input_GetButton_t)(void* name);
-typedef bool    (*CharController_IsGrounded_t)(void* cc);
-typedef void    (*FirePellets_t)(void* wp, Vec3 origin, Quat rot);
-typedef void    (*SendChat_t)(void* msg);
-typedef void*   (*GetDeviceUID_t)();
-typedef void    (*WallHackDetector_t)(void* cb, Vec3 pos);
-typedef void    (*ShootRaycastModule_t)();
-typedef bool    (*RootDetect_Checkroot_t)();
-typedef void    (*SessionGuard_Revoke_t)(const char* reason);
-typedef void    (*SessionGuard_Reset_t)();
-typedef const char* (*ScarletVersion_GetVersion_t)();
-typedef void    (*ScarletVersion_cctor_t)();
-typedef void    (*ApkHashChecker_ctor_t)();
-
-typedef void    (*PublishLook_t)(void* weaponParams, void* skin, void* stickers, int seed);
-typedef void    (*SetSkin_t)(void* weaponParams, void* skin, void* stattrak, bool isPickup, void* stickers, int seed, int owner);
-typedef void    (*ApplySkin_t)(void* weaponParams, void* skin, void* stattrak, void* stickers, int seed, int generation);
-typedef void    (*ApplyStickers_t)(int index, void* weapon, void* weaponParams, void* stickers);
-
-struct Offset { const char* name; UPtr rva; };
-
-static const Offset g_offsets[] = {
-    { "FirePellets",                       0x12783E4 },
-    { "PlayerDamage",                      0x12796AC },
-    { "AddVisible",                        0x15C9670 },
-    { "WorldToScreenPoint",                0x2B73E5C },
-    { "Camera_main",                       0x2B741F0 },
-    { "Transform_get_position",            0x2BB4894 },
-    { "Transform_set_rotation",            0x2BB4B58 },
-    { "Transform_get_forward",             0x2BA2D4C },
-    { "Input_GetButton",                   0x24DCF0C },
-    { "CharacterController_isGrounded",    0x2BFCC04 },
-    { "SendChatMessage",                   0x158D6B0 },
-    { "SystemInfo_deviceUniqueIdentifier", 0x2BB19D8 },
-    { "WallHackDetector_StartDetection",   0x1234B94 },
-    { "ShootRaycastModule",                0x1239F20 },
-    { "RootDetect_Start",                  0x140ED60 },
-    { "RootDetect_Checkroot",              0x140EDF0 },
-    { "ApkHashChecker_ctor",               0x126F358 },
-    { "SessionGuard_Revoke",               0x13F00CC },
-    { "SessionGuard_Reset",                0x13F03D4 },
-    { "ScarletVersion_cctor",              0x13F044C },
-    { "ScarletVersion_GetVersion",         0x13F00CC },
-    { "GameObject_Find",                   0x2BAB388 },
-    { "Component_GetComponent",            0x2BAA268 },
-    { "PublishLook",                       0x1275CBC },
-    { "SetSkin_Full",                      0x12727E0 },
-    { "ApplySkin",                         0x12759E4 },
-    { "SetSkin_Simple",                    0x1276368 },
-    { "ApplyStickers",                     0x143057C },
-    { "SetInventory",                      0x146F390 },
-    { 0, 0 }
+    static GameController* Find() {
+        GameObject* go = GameObject::Find("GameController");
+        if (!go) return nullptr;
+        return go->GetComponent<GameController>();
+    }
 };
 
 struct CheatConfig {
-    bool  silent_aim;
-    float fov;
-    int   target_bone;
-    float max_distance;
-    bool  predictive_aim;
-    int   prediction_ms;
-    bool  spin_enabled;
-    float spin_speed;
-    int   spin_mode;
-    bool  spin_invert_x;
-    bool  esp_boxes;
-    bool  esp_names;
-    bool  esp_distance;
-    bool  chams_enabled;
-    float chams_r;
-    float chams_g;
-    float chams_b;
-    bool  no_recoil;
-    bool  no_spread;
-    bool  bunnyhop;
-    bool  chat_spam;
-    float spam_interval;
-    bool  hwid_spoof;
-    bool  bypass_actk;
-    bool  bypass_version;
-    bool  bypass_rootdetect;
-    bool  skin_changer_enabled;
-    int   skin_id;
-    int   skin_seed;
-    bool  skin_stattrak;
-    int   stattrak_value;
-    bool  skin_update_players;
+    bool  silent_aim = false;
+    float fov = 25.0f;
+    int   target_bone = 0;
+    float max_distance = 150.0f;
+    bool  predictive_aim = false;
+    int   prediction_ms = 100;
+
+    bool  spin_enabled = false;
+    float spin_speed = 180.0f;
+    int   spin_mode = 1;
+    bool  spin_invert_x = false;
+
+    bool  esp_boxes = true;
+    bool  esp_names = true;
+    bool  esp_distance = true;
+    bool  chams_enabled = false;
+    float chams_r = 1.0f;
+    float chams_g = 0.0f;
+    float chams_b = 0.0f;
+
+    bool  no_recoil = true;
+    bool  no_spread = true;
+    bool  bunnyhop = false;
+
+    bool  chat_spam = false;
+    float spam_interval = 5.0f;
+
+    bool  hwid_spoof = false;
+    bool  bypass_actk = true;
+    bool  bypass_version = true;
+    bool  bypass_rootdetect = true;
+
+    bool  skin_changer_enabled = false;
+    int   skin_id = 1;
+    int   skin_seed = 1337;
+    bool  skin_stattrak = true;
+    int   stattrak_value = 1337;
+    bool  skin_update_players = true;
 };
 
 extern UPtr g_base;
@@ -267,11 +266,11 @@ void Config_Load();
 void Config_Save();
 
 void  UpdatePlayerList();
-void* GetLocalPlayer();
-void* GetCamera();
+Player* GetLocalPlayer();
+Camera* GetCamera();
 int   GetPlayerCount();
-void* GetPlayer(int idx);
-Vec3  GetPlayerPosition(void* player);
+Player* GetPlayer(int idx);
+Vec3  GetPlayerPosition(Player* player);
 Vec3  GetCameraForward();
 Vec3  WorldToScreenPoint(Vec3 world);
 float Distance3D(Vec3 a, Vec3 b);
@@ -283,4 +282,15 @@ extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
 extern "C" void MenuRender(float dt, void* renderPassDescriptor);
+
 extern void* g_currentRenderPassDescriptor;
+
+struct PatternScanner {
+    static UPtr FindPattern(UPtr base, size_t size, const char* pattern, const char* mask);
+    static UPtr FindPatternModule(const char* module_name, const char* pattern, const char* mask);
+};
+
+struct HookManager {
+    static bool Hook(void* target, void* detour, void** original);
+    static bool Unhook(void* target);
+};
