@@ -29,7 +29,6 @@ extern "C" void MenuInit() {
     io.IniFilename = NULL;
     io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.MouseDrawCursor = true;
 
     ImGui::StyleColorsDark();
@@ -71,7 +70,7 @@ extern "C" void MenuInit() {
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.12f, 0.13f, 1.00f);
     style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.12f, 0.12f, 0.13f, 1.00f);
     style.Colors[ImGuiCol_PopupBg] = ImVec4(0.12f, 0.12f, 0.13f, 0.95f);
-    style.Colors[ImGuiCol_CheckBox] = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
     style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
     style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.0f, 1.0f, 0.6f, 1.0f);
     style.Colors[ImGuiCol_Button] = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
@@ -114,7 +113,7 @@ static void RenderMenu() {
 
     static int tab = 0;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
-    if (ImGui::BeginTabBar("##MenuTabs", ImGuiTabBarFlags_FittingPolicyResize)) {
+    if (ImGui::BeginTabBar("##MenuTabs", ImGuiTabBarFlags_FittingPolicyResizeDown)) {
         if (ImGui::BeginTabItem("Aimbot")) {
             tab = 0;
             ImGui::EndTabItem();

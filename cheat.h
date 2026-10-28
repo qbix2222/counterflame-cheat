@@ -19,6 +19,7 @@ typedef float     F32;
 typedef int64_t   S64;
 typedef uint64_t  U64;
 
+struct Vec2  { F32 x, y; };
 struct Vec3  { F32 x, y, z; };
 struct Quat  { F32 x, y, z, w; };
 struct Color { F32 r, g, b, a; };

@@ -212,9 +212,6 @@ void ZeroSpread(void* weaponParams) {
     wp->spread = 0.0f;
     wp->hipFireAccuracy = 1.0f;
     wp->movementAccuracy = 1.0f;
-    wp->jumpAccuracy = 1.0f;
-    wp->crouchAccuracy = 1.0f;
-    wp->proneAccuracy = 1.0f;
 }
 
 void ApplyNoRecoil(F32* amount) {
