@@ -36,10 +36,10 @@ extern "C" void MenuInit() {
     io.IniFilename = NULL;
     io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.MouseDrawCursor = true;
 
-    // Dark theme with neon accents (modern cheat menu style)
+    ImGui::StyleColorsDark();
+
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowPadding      = ImVec2(12, 12);
     style.WindowRounding     = 12.0f;
@@ -58,25 +58,24 @@ extern "C" void MenuInit() {
     style.ButtonTextAlign    = ImVec2(0.5f, 0.5f);
     style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
 
-    // Dark theme with neon accents
     style.Colors[ImGuiCol_WindowBg]          = ImVec4(0.08f, 0.08f, 0.10f, 0.98f);
     style.Colors[ImGuiCol_MenuBarBg]         = ImVec4(0.08f, 0.08f, 0.10f, 1.00f);
-    style.Colors[ImGuiCol_Border]            = ImVec4(0.25f, 0.25f, 0.30f, 0.40f);
-    style.Colors[ImGuiCol_FrameBg]           = ImVec4(0.14f, 0.14f, 0.16f, 1.00f);
-    style.Colors[ImGuiCol_FrameBgHovered]    = ImVec4(0.20f, 0.20f, 0.24f, 1.00f);
-    style.Colors[ImGuiCol_FrameBgActive]     = ImVec4(0.28f, 0.25f, 0.32f, 1.00f);
+    style.Colors[ImGuiCol_Border]            = ImVec4(0.20f, 0.20f, 0.23f, 0.50f);
+    style.Colors[ImGuiCol_FrameBg]           = ImVec4(0.15f, 0.15f, 0.17f, 1.00f);
+    style.Colors[ImGuiCol_FrameBgHovered]    = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    style.Colors[ImGuiCol_FrameBgActive]     = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
     style.Colors[ImGuiCol_TitleBg]           = ImVec4(0.08f, 0.08f, 0.10f, 1.00f);
     style.Colors[ImGuiCol_TitleBgActive]     = ImVec4(0.08f, 0.08f, 0.10f, 1.00f);
     style.Colors[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.08f, 0.08f, 0.10f, 1.00f);
-    style.Colors[ImGuiCol_PopupBg]           = ImVec4(0.10f, 0.10f, 0.12f, 0.96f);
+    style.Colors[ImGuiCol_PopupBg]           = ImVec4(0.10f, 0.10f, 0.12f, 0.95f);
     style.Colors[ImGuiCol_BorderShadow]      = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    style.Colors[ImGuiCol_CheckBox]          = ImVec4(0.18f, 0.18f, 0.20f, 1.00f);
+    style.Colors[ImGuiCol_CheckMark]         = g_accent_color;
     style.Colors[ImGuiCol_SliderGrab]        = g_accent_color;
     style.Colors[ImGuiCol_SliderGrabActive]  = ImVec4(0.0f, 0.8f, 0.6f, 1.0f);
-    style.Colors[ImGuiCol_Button]            = ImVec4(0.18f, 0.18f, 0.20f, 1.00f);
+    style.Colors[ImGuiCol_Button]            = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     style.Colors[ImGuiCol_ButtonHovered]     = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
     style.Colors[ImGuiCol_ButtonActive]      = g_accent_color;
-    style.Colors[ImGuiCol_Header]            = ImVec4(0.18f, 0.18f, 0.20f, 1.00f);
+    style.Colors[ImGuiCol_Header]            = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     style.Colors[ImGuiCol_HeaderHovered]     = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
     style.Colors[ImGuiCol_HeaderActive]      = g_accent_color;
     style.Colors[ImGuiCol_Separator]         = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
@@ -104,10 +103,7 @@ extern "C" void MenuSetOpen(bool open) {
 }
 
 static void DrawStyledCheckbox(const char* label, bool* value) {
-    ImGui::PushStyleColor(ImGuiCol_CheckBox, ImVec4(0.20f, 0.20f, 0.23f, 1.00f));
-    if (ImGui::Checkbox(label, value)) {
-        // Toggle handled by caller
-    }
+    ImGui::Checkbox(label, value);
     if (*value) {
         ImGui::SameLine();
         ImGui::TextColored(g_accent_color, "ON");
@@ -115,17 +111,14 @@ static void DrawStyledCheckbox(const char* label, bool* value) {
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f), "OFF");
     }
-    ImGui::PopStyleColor();
 }
 
 static void RenderMenu() {
     if (!g_menu_open) return;
 
-    ImGui::Begin("CounterFlame Internal v1.3.0", &g_menu_open,
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
+    ImGui::Begin("CounterFlame Internal v1.3.0", &g_menu_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
     ImGui::SetWindowSize(ImVec2(820, 680), ImGuiCond_FirstUseEver);
 
-    // Header
     ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
     ImGui::TextColored(g_accent_color, "COUNTERFLAME");
     ImGui::SameLine();
@@ -134,9 +127,8 @@ static void RenderMenu() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Tab bar
     static int tab = 0;
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
     if (ImGui::BeginTabBar("##MenuTabs", ImGuiTabBarFlags_FittingPolicyResizeDown)) {
         if (ImGui::BeginTabItem("Aimbot")) {
             tab = 0;
@@ -175,7 +167,6 @@ static void RenderMenu() {
     ImGui::PopStyleVar();
     ImGui::Spacing();
 
-    // ================= AIMBOT TAB =================
     if (tab == 0) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -183,8 +174,7 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.14f, 0.14f, 0.17f, 1.00f));
-        ImGui::Checkbox("Silent Aim", &g_silent_aim);
+        DrawStyledCheckbox("Silent Aim", &g_silent_aim);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Кроссхэир на месте, пуля в цель");
         ImGui::SliderFloat("FOV", &g_fov, 1.0f, 90.0f, "%.1f°");
@@ -192,11 +182,9 @@ static void RenderMenu() {
         ImGui::Combo("Bone", &g_target_bone, "Head\0Body\0Neck\0");
         ImGui::Checkbox("Predictive Aim", &g_predictive_aim);
         ImGui::SliderInt("Pred (ms)", &g_prediction_ms, 0, 500, "%d мс");
-        ImGui::PopStyleColor();
         ImGui::EndGroup();
     }
 
-    // ================= ANTI-AIM TAB =================
     if (tab == 1) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -204,14 +192,13 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("Spinbot (крутилка)", &g_spin_enabled);
+        DrawStyledCheckbox("Spinbot (крутилка)", &g_spin_enabled);
         ImGui::Combo("Mode", &g_spin_mode, "Off\0Spin\0Jitter\0Static\0");
         ImGui::SliderFloat("Speed", &g_spin_speed, 10.0f, 720.0f, "%.0f deg/s");
-        ImGui::Checkbox("Invert X", &g_spin_invert_x);
+        DrawStyledCheckbox("Invert X", &g_spin_invert_x);
         ImGui::EndGroup();
     }
 
-    // ================= VISUALS TAB =================
     if (tab == 2) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -219,18 +206,17 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("ESP Boxes", &g_esp_boxes);
+        DrawStyledCheckbox("ESP Boxes", &g_esp_boxes);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Боксы вокруг врагов");
-        ImGui::Checkbox("ESP Names", &g_esp_names);
-        ImGui::Checkbox("ESP Distance", &g_esp_distance);
-        ImGui::Checkbox("Chams (Wallhack)", &g_chams_enabled);
+        DrawStyledCheckbox("ESP Names", &g_esp_names);
+        DrawStyledCheckbox("ESP Distance", &g_esp_distance);
+        DrawStyledCheckbox("Chams (Wallhack)", &g_chams_enabled);
         ImGui::SameLine();
         ImGui::ColorEdit3("Chams Color", &g_chams_r);
         ImGui::EndGroup();
     }
 
-    // ================= WEAPON TAB =================
     if (tab == 3) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -238,16 +224,15 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("No Recoil", &g_no_recoil);
+        DrawStyledCheckbox("No Recoil", &g_no_recoil);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Убирает отдачу оружия");
-        ImGui::Checkbox("No Spread", &g_no_spread);
+        DrawStyledCheckbox("No Spread", &g_no_spread);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Убирает разброс пуль");
         ImGui::EndGroup();
     }
 
-    // ================= MOVEMENT TAB =================
     if (tab == 4) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -255,13 +240,12 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("Bunnyhop", &g_bunnyhop);
+        DrawStyledCheckbox("Bunnyhop", &g_bunnyhop);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Автопрыжок при приземлении");
         ImGui::EndGroup();
     }
 
-    // ================= CHAT TAB =================
     if (tab == 5) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -269,14 +253,13 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("Chat Spam", &g_chat_spam);
+        DrawStyledCheckbox("Chat Spam", &g_chat_spam);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Автосообщения в чат");
         ImGui::SliderFloat("Interval", &g_spam_interval, 1.0f, 10.0f, "%.1f с");
         ImGui::EndGroup();
     }
 
-    // ================= ANTI-BAN TAB =================
     if (tab == 6) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -284,22 +267,21 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("HWID Spoof", &g_hwid_spoof);
+        DrawStyledCheckbox("HWID Spoof", &g_hwid_spoof);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Подмена ID устройства");
-        ImGui::Checkbox("Bypass ACTk", &g_bypass_actk);
+        DrawStyledCheckbox("Bypass ACTk", &g_bypass_actk);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Обход Anti-Cheat Toolkit");
-        ImGui::Checkbox("Bypass Version", &g_bypass_version);
+        DrawStyledCheckbox("Bypass Version", &g_bypass_version);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Обход проверки версии");
-        ImGui::Checkbox("Bypass RootDetect", &g_bypass_rootdetect);
+        DrawStyledCheckbox("Bypass RootDetect", &g_bypass_rootdetect);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Обход детекта джейлбрейка");
         ImGui::EndGroup();
     }
 
-    // ================= SKIN CHANGER TAB =================
     if (tab == 7) {
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.5f, 1.0f));
@@ -307,15 +289,15 @@ static void RenderMenu() {
         ImGui::PopStyleColor();
         ImGui::Separator();
 
-        ImGui::Checkbox("Enable Skin Changer", &g_skin_changer_enabled);
+        DrawStyledCheckbox("Skin Changer", &g_skin_changer_enabled);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Меняет скин оружия для всех");
         ImGui::SliderInt("Skin ID", &g_skin_id, 1, 1000, "%d");
         ImGui::SliderInt("Seed", &g_skin_seed, 1, 9999, "%d");
-        ImGui::Checkbox("StatTrak", &g_skin_stattrak);
+        DrawStyledCheckbox("StatTrak", &g_skin_stattrak);
         ImGui::SameLine();
         ImGui::SliderInt("StatTrak Value", &g_stattrak_value, 0, 9999, "%d");
-        ImGui::Checkbox("Update Players", &g_skin_update_players);
+        DrawStyledCheckbox("Update Players", &g_skin_update_players);
         ImGui::SameLine();
         ImGui::TextColored(g_text_dim_color, "Обновляет скины всех игроков");
         ImGui::EndGroup();
@@ -325,7 +307,6 @@ static void RenderMenu() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Footer
     ImGui::TextColored(g_text_dim_color, "Chronicle Engine v3.0 | CounterFlame 1.3.0.1");
     ImGui::SameLine();
     ImGui::TextColored(g_accent_color, "STATUS: ACTIVE");
