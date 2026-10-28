@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include "dobby.h"
+#include "imgui.h"
 
 extern "C" void MenuInit();
 
@@ -401,6 +402,12 @@ void Config_Load() {
     g_bypass_actk = g_config.bypass_actk;
     g_bypass_version = g_config.bypass_version;
     g_bypass_rootdetect = g_config.bypass_rootdetect;
+    g_skin_changer_enabled = g_config.skin_changer_enabled;
+    g_skin_id = g_config.skin_id;
+    g_skin_seed = g_config.skin_seed;
+    g_skin_stattrak = g_config.skin_stattrak;
+    g_stattrak_value = g_config.stattrak_value;
+    g_skin_update_players = g_config.skin_update_players;
 }
 
 void Config_Save() {
@@ -408,7 +415,7 @@ void Config_Save() {
     g_config.fov = g_fov;
     g_config.target_bone = g_target_bone;
     g_config.max_distance = g_max_distance;
-    g_config.predictive_aim = g_config.predictive_aim;
+    g_config.predictive_aim = g_predictive_aim;
     g_config.prediction_ms = g_prediction_ms;
     g_config.spin_enabled = g_spin_enabled;
     g_config.spin_speed = g_spin_speed;

@@ -9,7 +9,7 @@ extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
-extern "C" void MenuRender(float dt);
+extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
 
 /* ---------- Menu state ---------- */
 static bool g_menu_initialized = false;
@@ -115,7 +115,7 @@ static void DrawStyledCheckbox(const char* label, bool* value) {
     }
 }
 
-extern "C" void MenuRender(float dt) {
+extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor) {
     if (!g_menu_initialized) return;
 
     // Update animation
@@ -125,13 +125,12 @@ extern "C" void MenuRender(float dt) {
 
     if (!g_menu_visible && g_menu_slide < 0.001f) return;
 
-    // Get render pass descriptor from global
-    if (!g_currentRenderPassDescriptor) return;
+    if (!renderPassDescriptor) return;
 
     id<MTLCommandBuffer> commandBuffer = [g_metal_queue commandBuffer];
     if (!commandBuffer) return;
 
-    ImGui_ImplMetal_NewFrame(g_currentRenderPassDescriptor);
+    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
     ImGui::NewFrame();
 
     // Build menu
@@ -282,9 +281,9 @@ extern "C" void MenuRender(float dt) {
     ImGui::End();
 
     // Render ImGui draw data
-    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:g_currentRenderPassDescriptor];
+    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
     if (encoder) {
-        ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), encoder);
+        ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder);
         [encoder endEncoding];
     }
     [commandBuffer commit];
