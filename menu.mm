@@ -16,9 +16,9 @@ static bool g_menu_initialized = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 
-bool g_menu_visible = false;
-float g_menu_slide   = 0.0f;
-float g_menu_target  = 0.0f;
+static bool  g_menu_visible = false;
+static float g_menu_slide   = 0.0f;
+static float g_menu_target  = 0.0f;
 
 /* ---------- Menu theme (tweakable) ---------- */
 static ImVec4 g_accent_color   = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
@@ -125,6 +125,8 @@ extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescr
 
     if (!g_menu_visible && g_menu_slide < 0.001f) return;
 
+    // Get render pass descriptor from global
+    extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
     if (!g_currentRenderPassDescriptor) return;
 
     id<MTLCommandBuffer> commandBuffer = [g_metal_queue commandBuffer];
@@ -167,6 +169,8 @@ extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescr
     const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin" };
     int tabCount = 8;
     float tabW = (winSize.x - 32.0f) / tabCount;
+    float tabY = winPos.y + 34.0f;
+    float tabH = 36.0f;
 
     for (int i = 0; i < tabCount; i++) {
         ImVec2 tp(winPos.x + 16.0f + i * tabW, winPos.y + 30.0f);

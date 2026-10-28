@@ -11,8 +11,6 @@
 #include <algorithm>
 #include <random>
 
-#import <Metal/Metal.h>
-
 typedef uintptr_t UPtr;
 typedef int32_t   S32;
 typedef uint32_t  U32;
@@ -175,41 +173,6 @@ static const Offset g_offsets[] = {
     { 0, 0 }
 };
 
-struct CheatConfig {
-    bool  silent_aim;
-    float fov;
-    int   target_bone;
-    float max_distance;
-    bool  predictive_aim;
-    int   prediction_ms;
-    bool  spin_enabled;
-    float spin_speed;
-    int   spin_mode;
-    bool  spin_invert_x;
-    bool  esp_boxes;
-    bool  esp_names;
-    bool  esp_distance;
-    bool  chams_enabled;
-    float chams_r;
-    float chams_g;
-    float chams_b;
-    bool  no_recoil;
-    bool  no_spread;
-    bool  bunnyhop;
-    bool  chat_spam;
-    float spam_interval;
-    bool  hwid_spoof;
-    bool  bypass_actk;
-    bool  bypass_version;
-    bool  bypass_rootdetect;
-    bool  skin_changer_enabled;
-    int   skin_id;
-    int   skin_seed;
-    bool  skin_stattrak;
-    int   stattrak_value;
-    bool  skin_update_players;
-};
-
 extern UPtr g_base;
 
 extern bool  g_silent_aim;
@@ -262,6 +225,41 @@ extern int   g_menu_position;
 extern float g_menu_anim_speed;
 extern int   g_menu_font_size;
 
+struct CheatConfig {
+    bool  silent_aim;
+    float fov;
+    int   target_bone;
+    float max_distance;
+    bool  predictive_aim;
+    int   prediction_ms;
+    bool  spin_enabled;
+    float spin_speed;
+    int   spin_mode;
+    bool  spin_invert_x;
+    bool  esp_boxes;
+    bool  esp_names;
+    bool  esp_distance;
+    bool  chams_enabled;
+    float chams_r;
+    float chams_g;
+    float chams_b;
+    bool  no_recoil;
+    bool  no_spread;
+    bool  bunnyhop;
+    bool  chat_spam;
+    float spam_interval;
+    bool  hwid_spoof;
+    bool  bypass_actk;
+    bool  bypass_version;
+    bool  bypass_rootdetect;
+    bool  skin_changer_enabled;
+    int   skin_id;
+    int   skin_seed;
+    bool  skin_stattrak;
+    int   stattrak_value;
+    bool  skin_update_players;
+};
+
 extern CheatConfig g_config;
 
 void InstallAllHooks(UPtr base);
@@ -284,5 +282,5 @@ extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
-extern "C" void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
+void MenuRender(float dt, id<MTLRenderPassDescriptor> renderPassDescriptor);
 extern id<MTLRenderPassDescriptor> g_currentRenderPassDescriptor;
