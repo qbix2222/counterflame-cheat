@@ -5,44 +5,42 @@
 #include "dobby.h"
 
 extern "C" void MenuInit();
-extern void DoRender(void* descriptor);
 
 UPtr g_base = 0;
 
-bool g_silent_aim = false;
+bool  g_silent_aim = false;
 float g_fov = 25.0f;
-int g_target_bone = 0;
+int   g_target_bone = 0;
 float g_max_distance = 150.0f;
-bool g_predictive_aim = false;
-int g_prediction_ms = 100;
+bool  g_predictive_aim = false;
+int   g_prediction_ms = 100;
 
-bool g_spin_enabled = false;
+bool  g_spin_enabled = false;
 float g_spin_speed = 180.0f;
-int g_spin_mode = 1;
-bool g_spin_invert_x = false;
+int   g_spin_mode = 1;
+bool  g_spin_invert_x = false;
 
-bool g_esp_boxes = true;
-bool g_esp_names = true;
-bool g_esp_distance = true;
-bool g_chams_enabled = false;
+bool  g_esp_boxes = true;
+bool  g_esp_names = true;
+bool  g_esp_distance = true;
+bool  g_chams_enabled = false;
 float g_chams_r = 1.0f;
 float g_chams_g = 0.0f;
 float g_chams_b = 0.0f;
 
-bool g_no_recoil = true;
-bool g_no_spread = true;
+bool  g_no_recoil = true;
+bool  g_no_spread = true;
+bool  g_bunnyhop = false;
 
-bool g_bunnyhop = false;
-
-bool g_chat_spam = false;
+bool  g_chat_spam = false;
 float g_spam_interval = 5.0f;
-int g_spam_index = 0;
+int   g_spam_index = 0;
 float g_spam_timer = 0.0f;
 
-bool g_hwid_spoof = false;
-bool g_bypass_actk = true;
+bool  g_hwid_spoof = false;
+bool  g_bypass_actk = true;
 
-bool g_menu_open = true;
+bool  g_menu_open = false;
 
 CheatConfig g_config = {};
 
@@ -62,10 +60,9 @@ static void* g_real_sendchat = 0;
 static void* g_real_hwid = 0;
 static void* g_real_wallhack = 0;
 static void* g_real_shootraycast = 0;
-static void* g_real_camera_render = 0;
 
 void* g_player_list = 0;
-int g_player_count = 0;
+int   g_player_count = 0;
 void* g_local_player = 0;
 void* g_camera = 0;
 
@@ -79,7 +76,7 @@ static void FindOffsetByName(const char* name, UPtr* out) {
 }
 
 static void* FindPlayerList() {
-    void* go = ((Find_t)(g_base + 0x2BAB388))("GameController");
+    void* go = ((GameObject_Find_t)(g_base + 0x2BAB388))((void*)"GameController");
     if (!go) return 0;
     void* comp = ((GetComponent_t)(g_base + 0x2BAA268))(go, 0);
     if (!comp) return 0;
@@ -122,20 +119,18 @@ void* GetPlayer(int idx) {
 
 Vec3 GetPlayerPosition(void* player) {
     Transform* tr = (Transform*)((Player*)player)->transform;
-    Vec3 pos = ((GetPosition_t)(g_base + 0x2BB4894))(tr);
-    return pos;
+    return ((Transform_GetPosition_t)(g_base + 0x2BB4894))(tr);
 }
 
 Vec3 GetCameraForward() {
-    if (!g_camera) return Vec3{0,0,1};
+    if (!g_camera) return V3(0,0,1);
     Transform* tr = (Transform*)((Camera*)g_camera)->transform;
-    Vec3 fwd = ((GetForward_t)(g_base + 0x2BA2D4C))(tr);
-    return fwd;
+    return ((Transform_GetForward_t)(g_base + 0x2BA2D4C))(tr);
 }
 
 Vec3 WorldToScreenPoint(Vec3 world) {
-    if (!g_camera) return Vec3{0,0,0};
-    return ((Vec3 (*)(void*, Vec3, int))(g_base + 0x2B73E5C))(g_camera, world, 0);
+    if (!g_camera) return V3(0,0,0);
+    return ((Camera_WorldToScreen_t)(g_base + 0x2B73E5C))(g_camera, world);
 }
 
 float Distance3D(Vec3 a, Vec3 b) {
@@ -164,7 +159,7 @@ void* FindClosestTargetInFOV(float fovDeg) {
         if (!p->isAlive) continue;
 
         Vec3 targetPos = GetPlayerPosition(p);
-        Vec3 toTarget = {targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z};
+        Vec3 toTarget = V3(targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z);
         F32 dist = sqrtf(toTarget.x*toTarget.x + toTarget.y*toTarget.y + toTarget.z*toTarget.z);
         if (dist > bestDist) continue;
 
@@ -182,14 +177,14 @@ void* FindClosestTargetInFOV(float fovDeg) {
 }
 
 Vec3 CalculateDirectionTo(void* target) {
-    if (!target || !g_camera) return Vec3{0,0,1};
+    if (!target || !g_camera) return V3(0,0,1);
     Vec3 camPos = GetPlayerPosition(g_local_player);
     Player* p = (Player*)target;
     Vec3 targetPos = GetPlayerPosition(p);
 
-    Vec3 dir = {targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z};
+    Vec3 dir = V3(targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z);
     F32 len = sqrtf(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
-    if (len < 0.001f) return Vec3{0,0,1};
+    if (len < 0.001f) return V3(0,0,1);
     dir.x /= len; dir.y /= len; dir.z /= len;
     return dir;
 }
@@ -212,10 +207,10 @@ void ApplyNoRecoil(F32* amount) {
 
 bool IsPlayerGrounded(void* controller) {
     if (!controller) return false;
-    return ((GetIsGrounded_t)(g_base + 0x2BFCC04))(controller);
+    return ((CharController_IsGrounded_t)(g_base + 0x2BFCC04))(controller);
 }
 
-void DetourFirePellets(void* weaponParams, Vec3 origin, Quat rotation, ...) {
+void DetourFirePellets(void* weaponParams, Vec3 origin, Quat rotation) {
     if (g_silent_aim) {
         void* target = FindClosestTargetInFOV(g_fov);
         if (target) {
@@ -238,10 +233,10 @@ void DetourSetRotation(void* transform, Quat value) {
         F32 new_y = sinf(rad);
         F32 new_w = cosf(rad);
         if (g_spin_invert_x) value.x = -value.x;
-        ((SetRotation_t)g_real_setrotation)(transform, (Quat){value.x, new_y, value.z, new_w});
+        ((Transform_SetRotation_t)g_real_setrotation)(transform, V3(new_y, 0, 0));
         return;
     }
-    ((SetRotation_t)g_real_setrotation)(transform, value);
+    ((Transform_SetRotation_t)g_real_setrotation)(transform, value);
 }
 
 bool DetourGetButton(const char* button) {
@@ -252,11 +247,11 @@ bool DetourGetButton(const char* button) {
             if (IsPlayerGrounded(tr)) return true;
         }
     }
-    return ((GetButton_t)g_real_getbutton)(button);
+    return ((Input_GetButton_t)g_real_getbutton)(button);
 }
 
-void DetourSendChatMessage(const char* message) {
-    ((SendChatMessage_t)g_real_sendchat)(message);
+void DetourSendChatMessage(void* message) {
+    ((SendChat_t)g_real_sendchat)(message);
 }
 
 void ChatSpamUpdate(F32 dt) {
@@ -267,7 +262,7 @@ void ChatSpamUpdate(F32 dt) {
         const char* msg = g_spam_msgs[g_spam_index];
         g_spam_index++;
         if (!g_spam_msgs[g_spam_index]) g_spam_index = 0;
-        if (msg) ((SendChatMessage_t)g_real_sendchat)(msg);
+        if (msg) ((SendChat_t)g_real_sendchat)((void*)msg);
     }
 }
 
@@ -277,7 +272,7 @@ const char* DetourGetDeviceUniqueIdentifier() {
         snprintf(buf, 64, "SPOOFED_%08X", rand());
         return buf;
     }
-    return ((GetDeviceUniqueIdentifier_t)g_real_hwid)();
+    return ((GetDeviceUID_t)g_real_hwid)();
 }
 
 void DetourWallHackDetector(void* callback, Vec3 spawnPos) {
@@ -289,13 +284,6 @@ void DetourWallHackDetector(void* callback, Vec3 spawnPos) {
 void DetourShootRaycastModule() {
     if (!g_bypass_actk) {
         ((ShootRaycastModule_t)g_real_shootraycast)();
-    }
-}
-
-void DetourCameraRender(void* camera, void* descriptor) {
-    ((Camera_Render_t)g_real_camera_render)(camera, descriptor);
-    if (g_menu_open && descriptor) {
-        DoRender(descriptor);
     }
 }
 
@@ -335,9 +323,9 @@ void Config_Save() {
     g_config.silent_aim = g_silent_aim;
     g_config.fov = g_fov;
     g_config.target_bone = g_target_bone;
-    g_config.max_distance = g_max_distance;
-    g_config.predictive_aim = g_predictive_aim;
-    g_config.prediction_ms = g_prediction_ms;
+    g_config.max_distance = g_config.max_distance;
+    g_config.predictive_aim = g_config.predictive_aim;
+    g_config.prediction_ms = g_config.prediction_ms;
     g_config.spin_enabled = g_spin_enabled;
     g_config.spin_speed = g_spin_speed;
     g_config.spin_mode = g_spin_mode;
@@ -367,46 +355,58 @@ void InstallAllHooks(UPtr base) {
     g_base = base;
     Config_Load();
     srand((U32)time(0));
-    MenuInit();
 
     UPtr addr;
 
     FindOffsetByName("FirePellets", &addr);
     g_real_firepellets = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets);
+    if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
+        printf("[!] DobbyHook failed: FirePellets\n");
+    }
 
     FindOffsetByName("Transform_set_rotation", &addr);
     g_real_setrotation = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation);
+    if (DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation) != 0) {
+        printf("[!] DobbyHook failed: Transform_set_rotation\n");
+    }
 
     FindOffsetByName("Input_GetButton", &addr);
     g_real_getbutton = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton);
+    if (DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton) != 0) {
+        printf("[!] DobbyHook failed: Input_GetButton\n");
+    }
 
     FindOffsetByName("SendChatMessage", &addr);
     g_real_sendchat = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat);
+    if (DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat) != 0) {
+        printf("[!] DobbyHook failed: SendChatMessage\n");
+    }
 
     FindOffsetByName("SystemInfo_deviceUniqueIdentifier", &addr);
     g_real_hwid = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid);
+    if (DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid) != 0) {
+        printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier\n");
+    }
 
     if (g_bypass_actk) {
         FindOffsetByName("WallHackDetector_StartDetection", &addr);
         g_real_wallhack = (void*)addr;
-        DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack);
+        if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
+            printf("[!] DobbyHook failed: WallHackDetector_StartDetection\n");
+        }
 
         FindOffsetByName("ShootRaycastModule", &addr);
         g_real_shootraycast = (void*)addr;
-        DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast);
+        if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
+            printf("[!] DobbyHook failed: ShootRaycastModule\n");
+        }
     }
-
-    FindOffsetByName("Camera_Render", &addr);
-    g_real_camera_render = (void*)addr;
-    DobbyHook((void*)addr, (void*)DetourCameraRender, (void**)&g_real_camera_render);
 
     UpdatePlayerList();
 }
 
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
+    g_base = 0x100000000;  // временно, пока не найдем реальный базу через main()
+    InstallAllHooks(g_base);
+    MenuInit();
 }

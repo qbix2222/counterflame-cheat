@@ -19,7 +19,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/jmpews/Dobby.git
           cd Dobby
-          mkdir build_for_ios_arm64 && cd build_for_ios_arm64
+          mkdir -p build_for_ios_arm64 && cd build_for_ios_arm64
           cmake .. \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -28,6 +28,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DDOBBY_GENERATE_SHARED=OFF
           make -j4
+          echo "Dobby static library built."
+          find . -name "libdobby.a"
 
       - name: Build dylib (arm64 iOS)
         run: |
