@@ -173,6 +173,51 @@ static const Offset g_offsets[] = {
     { 0, 0 }
 };
 
+struct CheatConfig {
+    bool  silent_aim;
+    float fov;
+    int   g_target_bone;
+    float g_max_distance;
+    bool  g_predictive_aim;
+    int   g_prediction_ms;
+    bool  g_spin_enabled;
+    float g_spin_speed;
+    int   g_spin_mode;
+    bool  g_spin_invert_x;
+    bool  g_esp_boxes;
+    bool  g_esp_names;
+    bool  g_esp_distance;
+    bool  g_chams_enabled;
+    float g_chams_r;
+    float g_chams_g;
+    float g_chams_b;
+    bool  g_no_recoil;
+    bool  g_no_spread;
+    bool  g_bunnyhop;
+    bool  g_chat_spam;
+    float g_spam_interval;
+    bool  g_hwid_spoof;
+    bool  g_bypass_actk;
+    bool  g_bypass_version;
+    bool  g_bypass_rootdetect;
+    bool  g_skin_changer_enabled;
+    int   g_skin_id;
+    int   g_skin_seed;
+    bool  g_skin_stattrak;
+    int   g_stattrak_value;
+    bool  g_skin_update_players;
+    extern bool  g_menu_open;
+    extern bool  g_menu_visible;
+    extern float g_menu_slide_offset;
+    extern bool  g_menu_toggle_btn;
+    extern bool  g_menu_tweaks_enabled;
+    extern float g_menu_opacity;
+    extern float g_menu_scale;
+    extern int   g_menu_position;
+    extern float g_menu_anim_speed;
+    extern int   g_menu_font_size;
+};
+
 extern UPtr g_base;
 
 extern bool  g_silent_aim;
@@ -224,41 +269,6 @@ extern float g_menu_scale;
 extern int   g_menu_position;
 extern float g_menu_anim_speed;
 extern int   g_menu_font_size;
-
-struct CheatConfig {
-    bool  silent_aim;
-    float fov;
-    int   target_bone;
-    float max_distance;
-    bool  predictive_aim;
-    int   prediction_ms;
-    bool  spin_enabled;
-    float spin_speed;
-    int   spin_mode;
-    bool  spin_invert_x;
-    bool  esp_boxes;
-    bool  esp_names;
-    bool  esp_distance;
-    bool  chams_enabled;
-    float chams_r;
-    float chams_g;
-    float chams_b;
-    bool  no_recoil;
-    bool  no_spread;
-    bool  bunnyhop;
-    bool  chat_spam;
-    float spam_interval;
-    bool  hwid_spoof;
-    bool  bypass_actk;
-    bool  bypass_version;
-    bool  bypass_rootdetect;
-    bool  skin_changer_enabled;
-    int   skin_id;
-    int   skin_seed;
-    bool  skin_stattrak;
-    int   stattrak_value;
-    bool  skin_update_players;
-};
 
 extern CheatConfig g_config;
 
