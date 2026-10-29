@@ -61,8 +61,6 @@ float g_menu_scale = 1.0f;
 int   g_menu_position = 0;
 float g_menu_anim_speed = 8.0f;
 int   g_menu_font_size = 14;
-ImVec4 g_menu_color = ImVec4(0.10f, 0.10f, 0.12f, 0.98f);
-ImVec4 g_menu_accent_color = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
 
 CheatConfig g_config = {};
 
@@ -91,87 +89,75 @@ static void* g_real_scarletversion_cctor = 0;
 static void* g_real_scarletversion_getversion = 0;
 static void* g_real_publishlook = 0;
 
-Player* g_local_player = nullptr;
-Camera* g_camera = nullptr;
-GameController* g_game_controller = nullptr;
+void* g_player_list = 0;
+int   g_player_count = 0;
+void* g_local_player = 0;
+void* g_camera = 0;
 
-UPtr PatternScanner::FindPattern(UPtr base, size_t size, const char* pattern, const char* mask) {
-    for (size_t i = 0; i < size - strlen(mask); i++) {
-        bool found = true;
-        for (size_t j = 0; mask[j]; j++) {
-            if (mask[j] == 'x' && *(uint8_t*)(base + i + j) != (uint8_t)pattern[j]) {
-                found = false;
-                break;
-            }
+static void FindOffsetByName(const char* name, UPtr* out) {
+    for (int i = 0; g_offsets[i].name; i++) {
+        if (strcmp(g_offsets[i].name, name) == 0) {
+            *out = g_base + g_offsets[i].rva;
+            return;
         }
-        if (found) return base + i;
     }
-    return 0;
+    *out = 0;
 }
 
-UPtr PatternScanner::FindPatternModule(const char* module_name, const char* pattern, const char* mask) {
-    return 0;
-}
-
-bool HookManager::Hook(void* target, void* detour, void** original) {
-    return DobbyHook(target, detour, original) == 0;
-}
-
-bool HookManager::Unhook(void* target) {
-    return DobbyDestroy(target) == 0;
+static void* FindPlayerList() {
+    void* go = ((void*(*)(void*))(g_base + 0x2BAB388))((void*)"GameController");
+    if (!go) return 0;
+    void* comp = ((void*(*)(void*, void*))(g_base + 0x2BAA268))(go, 0);
+    if (!comp) return 0;
+    return comp;
 }
 
 void UpdatePlayerList() {
-    if (!g_game_controller) {
-        g_game_controller = GameController::Find();
+    if (!g_player_list) {
+        g_player_list = FindPlayerList();
     }
-    if (!g_game_controller) return;
-    g_local_player = g_game_controller->localPlayer;
-    g_camera = g_game_controller->camera;
+    if (!g_player_list) return;
+    // GameController structure
+    void** arr = (void**)((uintptr_t)g_player_list + 0x18); // players array
+    g_local_player = (void*)((uintptr_t)g_player_list + 0x20); // localPlayer
+    g_camera = (void*)((uintptr_t)g_player_list + 0x28); // camera
 }
 
-Player* GetLocalPlayer() {
+void* GetLocalPlayer() {
     UpdatePlayerList();
     return g_local_player;
 }
 
-Camera* GetCamera() {
+void* GetCamera() {
     UpdatePlayerList();
     return g_camera;
 }
 
 int GetPlayerCount() {
-    UpdatePlayerList();
-    if (!g_game_controller) return 0;
-    return g_game_controller->playerCount;
+    if (!g_player_list) return 0;
+    return *(int*)((uintptr_t)g_player_list + 0x10); // playerCount
 }
 
-Player* GetPlayer(int idx) {
-    UpdatePlayerList();
-    if (!g_game_controller) return nullptr;
-    if (idx < 0 || idx >= g_game_controller->playerCount) return nullptr;
-    Player** arr = (Player**)g_game_controller->players;
+void* GetPlayer(int idx) {
+    if (!g_player_list) return 0;
+    void** arr = (void**)((uintptr_t)g_player_list + 0x18); // players array
+    if (idx < 0 || idx >= *(int*)((uintptr_t)g_player_list + 0x10)) return 0;
     return arr[idx];
 }
 
-Vec3 GetPlayerPosition(Player* player) {
+Vec3 GetPlayerPosition(void* player) {
     if (!player) return V3(0,0,0);
-    return player->GetPosition();
+    return ((Vec3(*)(void*))(g_base + 0x2BB4894))((void*)((uintptr_t)player + 0x18)); // transform -> get_position
 }
 
 Vec3 GetCameraForward() {
     if (!g_camera) return V3(0,0,1);
-    static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Transform", "get_forward", 0);
-    if (method && g_camera) {
-        Transform* t = g_camera->GetTransform();
-        if (t) return g_il2cpp.Invoke<Vec3>(method, t);
-    }
-    return V3(0,0,1);
+    return ((Vec3(*)(void*))(g_base + 0x2BB4DE4))((void*)((uintptr_t)g_camera + 0x18)); // transform -> get_forward
 }
 
 Vec3 WorldToScreenPoint(Vec3 world) {
     if (!g_camera) return V3(0,0,0);
-    return g_camera->WorldToScreenPoint(world);
+    return ((Vec3(*)(void*, Vec3))(g_base + 0x2B73E5C))(g_camera, world);
 }
 
 float Distance3D(Vec3 a, Vec3 b) {
@@ -181,23 +167,25 @@ float Distance3D(Vec3 a, Vec3 b) {
     return sqrtf(dx*dx + dy*dy + dz*dz);
 }
 
-Player* FindClosestTargetInFOV(float fovDeg) {
-    if (!g_camera || !g_game_controller) return nullptr;
+void* FindClosestTargetInFOV(float fovDeg) {
+    if (!g_camera || !g_player_list) return 0;
     Vec3 camPos = GetPlayerPosition(g_local_player);
     Vec3 camFwd = GetCameraForward();
     F32 halfFov = fovDeg * 0.5f * 3.1415926f / 180.0f;
 
-    Player* best = nullptr;
+    void* best = 0;
     F32 bestDist = g_max_distance;
 
     int count = GetPlayerCount();
     for (int i = 0; i < count; i++) {
-        Player* ply = GetPlayer(i);
+        void* ply = GetPlayer(i);
         if (!ply) continue;
         if (ply == g_local_player) continue;
-        if (!ply->isAlive) continue;
+        // Check isAlive
+        bool isAlive = *(bool*)((uintptr_t)ply + 0x30);
+        if (!isAlive) continue;
 
-        Vec3 targetPos = ply->GetPosition();
+        Vec3 targetPos = GetPlayerPosition(ply);
         Vec3 toTarget = V3(targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z);
         F32 dist = sqrtf(toTarget.x*toTarget.x + toTarget.y*toTarget.y + toTarget.z*toTarget.z);
         if (dist > bestDist) continue;
@@ -215,10 +203,10 @@ Player* FindClosestTargetInFOV(float fovDeg) {
     return best;
 }
 
-Vec3 CalculateDirectionTo(Player* target) {
+Vec3 CalculateDirectionTo(void* target) {
     if (!target || !g_camera) return V3(0,0,1);
     Vec3 camPos = GetPlayerPosition(g_local_player);
-    Vec3 targetPos = target->GetPosition();
+    Vec3 targetPos = GetPlayerPosition(target);
 
     Vec3 dir = V3(targetPos.x - camPos.x, targetPos.y - camPos.y, targetPos.z - camPos.z);
     F32 len = sqrtf(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
@@ -227,44 +215,39 @@ Vec3 CalculateDirectionTo(Player* target) {
     return dir;
 }
 
-void ZeroSpread(WeaponParameters* wp) {
-    if (!wp || !g_no_spread) return;
-    wp->spread = 0.0f;
-    wp->hipFireAccuracy = 1.0f;
-    wp->movementAccuracy = 1.0f;
+void ZeroSpread(void* weaponParams) {
+    if (!weaponParams || !g_no_spread) return;
+    // WeaponParameters structure: spread at offset 0x50
+    *(float*)((uintptr_t)weaponParams + 0x50) = 0.0f;
+    *(float*)((uintptr_t)weaponParams + 0x5C) = 1.0f; // hipFireAccuracy
+    *(float*)((uintptr_t)weaponParams + 0x60) = 1.0f; // movementAccuracy
 }
 
-void ApplyNoRecoil(F32* amount) {
+void ApplyNoRecoil(float* amount) {
     if (!g_no_recoil) return;
     *amount = 0.0f;
 }
 
-bool IsPlayerGrounded(Player* player) {
-    if (!player) return false;
-    // Use CharacterController.isGrounded
-    static void* method = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "CharacterController", "get_isGrounded", 0);
-    if (method) {
-        void* cc = g_il2cpp.Invoke<void*>(method, player);
-        return cc != nullptr;
-    }
-    return false;
+bool IsPlayerGrounded(void* controller) {
+    if (!controller) return false;
+    return ((bool(*)(void*))(g_base + 0x2BFCC04))(controller);
 }
 
-void DetourFirePellets(WeaponParameters* weaponParams, Vec3 origin, Quat rotation) {
+void DetourFirePellets(void* weaponParams, Vec3 origin, Quat rotation) {
     if (g_silent_aim && weaponParams) {
-        Player* target = FindClosestTargetInFOV(g_fov);
+        void* target = FindClosestTargetInFOV(g_fov);
         if (target) {
             Vec3 dir = CalculateDirectionTo(target);
             if (g_no_spread) ZeroSpread(weaponParams);
-            ((void(*)(WeaponParameters*, Vec3, Quat))g_real_firepellets)(weaponParams, dir, rotation);
+            ((void(*)(void*, Vec3, Quat))g_real_firepellets)(weaponParams, dir, rotation);
             return;
         }
     }
-    ((void(*)(WeaponParameters*, Vec3, Quat))g_real_firepellets)(weaponParams, origin, rotation);
+    ((void(*)(void*, Vec3, Quat))g_real_firepellets)(weaponParams, origin, rotation);
 }
 
-void DetourSetRotation(Transform* transform, Quat value) {
-    if (g_spin_enabled && transform) {
+void DetourSetRotation(void* transform, Quat value) {
+    if (g_spin_enabled) {
         static F32 spin_yaw = 0.0f;
         spin_yaw += g_spin_speed * 0.016f;
         if (spin_yaw > 360.0f) spin_yaw -= 360.0f;
@@ -274,16 +257,19 @@ void DetourSetRotation(Transform* transform, Quat value) {
         if (g_spin_invert_x) value.x = -value.x;
         value.y = new_y;
         value.w = new_w;
-        ((void(*)(Transform*, Quat))g_real_setrotation)(transform, value);
+        ((void(*)(void*, Quat))g_real_setrotation)(transform, value);
         return;
     }
-    ((void(*)(Transform*, Quat))g_real_setrotation)(transform, value);
+    ((void(*)(void*, Quat))g_real_setrotation)(transform, value);
 }
 
 bool DetourGetButton(const char* button) {
     if (g_bunnyhop && strcmp(button, "Jump") == 0) {
-        Player* local = GetLocalPlayer();
-        if (local && IsPlayerGrounded(local)) return true;
+        void* local = GetLocalPlayer();
+        if (local) {
+            void* transform = (void*)((uintptr_t)local + 0x18);
+            if (IsPlayerGrounded(transform)) return true;
+        }
     }
     return ((bool(*)(const char*))g_real_getbutton)(button);
 }
@@ -331,7 +317,7 @@ bool DetourRootDetect_Checkroot() {
 }
 
 void DetourApkHashChecker_ctor() {
-    // Bypass
+    // Bypass - do nothing
 }
 
 void DetourSessionGuard_Revoke(const char* reason) {
@@ -354,26 +340,19 @@ const char* DetourScarletVersion_GetVersion() {
     return ((const char*(*)())g_real_scarletversion_getversion)();
 }
 
-void DetourPublishLook(WeaponParameters* weaponParams, void* skin, void* stickers, int seed) {
+void DetourPublishLook(void* weaponParams, void* skin, void* stickers, int seed) {
     if (g_skin_changer_enabled && g_skin_update_players && weaponParams) {
         char customSkin[64];
         snprintf(customSkin, sizeof(customSkin), "skin_%d", g_skin_id);
-        ((void(*)(WeaponParameters*, void*, void*, int))g_real_publishlook)(weaponParams, customSkin, stickers, g_skin_seed);
+        ((void(*)(void*, void*, void*, int))g_real_publishlook)(weaponParams, customSkin, stickers, g_skin_seed);
         return;
     }
-    ((void(*)(WeaponParameters*, void*, void*, int))g_real_publishlook)(weaponParams, skin, stickers, seed);
+    ((void(*)(void*, void*, void*, int))g_real_publishlook)(weaponParams, skin, stickers, seed);
 }
 
 void ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed) {
     if (!g_skin_changer_enabled) return;
-    WeaponParameters* wp = (WeaponParameters*)weapon;
-    if (wp) {
-        char customSkin[64];
-        snprintf(customSkin, sizeof(customSkin), "skin_%d", g_skin_id);
-        // Call PublishLook via IL2CPP
-        void* method = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "WeaponSkin", "PublishLook", 4);
-        if (method) g_il2cpp.Invoke<void>(method, wp, customSkin, stickers, seed);
-    }
+    // Hook handled by DetourPublishLook
 }
 
 void Config_Load() {
@@ -456,61 +435,195 @@ void Config_Save() {
     fclose(f);
 }
 
-void InstallHooksViaResolver() {
-    // Resolve methods by name using IL2CPP metadata
-    void* firepellets = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "Weapon", "FirePellets", 3);
-    void* setrotation = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Transform", "set_rotation", 1);
-    void* getbutton = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "Input", "GetButton", 1);
-    void* sendchat = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "ChatManager", "SendChatMessage", 1);
-    void* hwid = g_il2cpp.GetMethod("UnityEngine.CoreModule.dll", "UnityEngine", "SystemInfo", "get_deviceUniqueIdentifier", 0);
-    void* wallhack = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "WallHackDetector", "StartDetection", 2);
-    void* shootraycast = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "ShootRaycastModule", "Update", 0);
-    void* rootdetect = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "RootDetect", "Checkroot", 0);
-    void* apkhash = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "ApkHashChecker", ".ctor", 0);
-    void* sessionrevoke = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "SessionGuard", "Revoke", 1);
-    void* sessionreset = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "SessionGuard", "Reset", 0);
-    void* scarletcctor = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "ScarletVersion", ".cctor", 0);
-    void* scarletversion = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "ScarletVersion", "GetVersion", 0);
-    void* publishlook = g_il2cpp.GetMethod("Assembly-CSharp.dll", "", "WeaponSkin", "PublishLook", 4);
+UPtr PatternScanner::FindPattern(UPtr base, size_t size, const char* pattern, const char* mask) {
+    for (size_t i = 0; i < size - strlen(mask); i++) {
+        bool found = true;
+        for (size_t j = 0; mask[j]; j++) {
+            if (mask[j] == 'x' && *(uint8_t*)(base + i + j) != (uint8_t)pattern[j]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) return base + i;
+    }
+    return 0;
+}
 
-    if (firepellets) HookManager::Hook(firepellets, (void*)DetourFirePellets, &g_real_firepellets);
-    if (setrotation) HookManager::Hook(setrotation, (void*)DetourSetRotation, &g_real_setrotation);
-    if (getbutton) HookManager::Hook(getbutton, (void*)DetourGetButton, &g_real_getbutton);
-    if (sendchat) HookManager::Hook(sendchat, (void*)DetourSendChatMessage, &g_real_sendchat);
-    if (hwid) HookManager::Hook(hwid, (void*)DetourGetDeviceUniqueIdentifier, &g_real_hwid);
-    if (wallhack) HookManager::Hook(wallhack, (void*)DetourWallHackDetector, &g_real_wallhack);
-    if (shootraycast) HookManager::Hook(shootraycast, (void*)DetourShootRaycastModule, &g_real_shootraycast);
-    if (rootdetect) HookManager::Hook(rootdetect, (void*)DetourRootDetect_Checkroot, &g_real_rootdetect_checkroot);
-    if (apkhash) HookManager::Hook(apkhash, (void*)DetourApkHashChecker_ctor, &g_real_apkhash_ctor);
-    if (sessionrevoke) HookManager::Hook(sessionrevoke, (void*)DetourSessionGuard_Revoke, &g_real_sessionguard_revoke);
-    if (sessionreset) HookManager::Hook(sessionreset, (void*)DetourSessionGuard_Reset, &g_real_sessionguard_reset);
-    if (scarletcctor) HookManager::Hook(scarletcctor, (void*)DetourScarletVersion_cctor, &g_real_scarletversion_cctor);
-    if (scarletversion) HookManager::Hook(scarletversion, (void*)DetourScarletVersion_GetVersion, &g_real_scarletversion_getversion);
-    if (publishlook) HookManager::Hook(publishlook, (void*)DetourPublishLook, &g_real_publishlook);
+UPtr PatternScanner::FindPatternModule(const char* module_name, const char* pattern, const char* mask) {
+    return 0;
+}
+
+bool HookManager::Hook(void* target, void* detour, void** original) {
+    return DobbyHook(target, detour, original) == 0;
+}
+
+bool HookManager::Unhook(void* target) {
+    return DobbyDestroy(target) == 0;
 }
 
 void InstallAllHooks(UPtr base) {
     g_base = base;
-
-    // Initialize IL2CPP resolver with UnityFramework handle
-    void* unity_framework = dlopen("UnityFramework", RTLD_LAZY);
-    if (!unity_framework) {
-        // Try to find it via base address
-        unity_framework = (void*)base;
-    }
-
-    if (g_il2cpp.Initialize(unity_framework)) {
-        printf("[IL2CPP] Resolver initialized successfully\n");
-        InstallHooksViaResolver();
-    } else {
-        printf("[IL2CPP] Failed to initialize resolver, falling back to RVAs\n");
-        // Fallback to RVA-based hooks
-        srand((U32)time(0));
-        // ... existing RVA-based hook installation
-    }
-
     Config_Load();
+    srand((U32)time(0));
+
+    UPtr addr = 0;
+
+    // FirePellets
+    FindOffsetByName("FirePellets", &addr);
+    if (addr) {
+        g_real_firepellets = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourFirePellets, (void**)&g_real_firepellets) != 0) {
+            printf("[!] DobbyHook failed: FirePellets at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked FirePellets at 0x%lx\n", addr);
+        }
+    }
+
+    // Transform_set_rotation
+    FindOffsetByName("Transform_set_rotation", &addr);
+    if (addr) {
+        g_real_setrotation = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourSetRotation, (void**)&g_real_setrotation) != 0) {
+            printf("[!] DobbyHook failed: Transform_set_rotation at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked Transform_set_rotation at 0x%lx\n", addr);
+        }
+    }
+
+    // Input_GetButton
+    FindOffsetByName("Input_GetButton", &addr);
+    if (addr) {
+        g_real_getbutton = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourGetButton, (void**)&g_real_getbutton) != 0) {
+            printf("[!] DobbyHook failed: Input_GetButton at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked Input_GetButton at 0x%lx\n", addr);
+        }
+    }
+
+    // SendChatMessage
+    FindOffsetByName("SendChatMessage", &addr);
+    if (addr) {
+        g_real_sendchat = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourSendChatMessage, (void**)&g_real_sendchat) != 0) {
+            printf("[!] DobbyHook failed: SendChatMessage at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked SendChatMessage at 0x%lx\n", addr);
+        }
+    }
+
+    // SystemInfo_deviceUniqueIdentifier
+    FindOffsetByName("SystemInfo_deviceUniqueIdentifier", &addr);
+    if (addr) {
+        g_real_hwid = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourGetDeviceUniqueIdentifier, (void**)&g_real_hwid) != 0) {
+            printf("[!] DobbyHook failed: SystemInfo_deviceUniqueIdentifier at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked SystemInfo_deviceUniqueIdentifier at 0x%lx\n", addr);
+        }
+    }
+
+    // WallHackDetector_StartDetection
+    FindOffsetByName("WallHackDetector_StartDetection", &addr);
+    if (addr) {
+        g_real_wallhack = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourWallHackDetector, (void**)&g_real_wallhack) != 0) {
+            printf("[!] DobbyHook failed: WallHackDetector_StartDetection at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked WallHackDetector_StartDetection at 0x%lx\n", addr);
+        }
+    }
+
+    // ShootRaycastModule
+    FindOffsetByName("ShootRaycastModule", &addr);
+    if (addr) {
+        g_real_shootraycast = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourShootRaycastModule, (void**)&g_real_shootraycast) != 0) {
+            printf("[!] DobbyHook failed: ShootRaycastModule at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked ShootRaycastModule at 0x%lx\n", addr);
+        }
+    }
+
+    // RootDetect_Checkroot
+    FindOffsetByName("RootDetect_Checkroot", &addr);
+    if (addr) {
+        g_real_rootdetect_checkroot = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourRootDetect_Checkroot, (void**)&g_real_rootdetect_checkroot) != 0) {
+            printf("[!] DobbyHook failed: RootDetect_Checkroot at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked RootDetect_Checkroot at 0x%lx\n", addr);
+        }
+    }
+
+    // ApkHashChecker_ctor
+    FindOffsetByName("ApkHashChecker_ctor", &addr);
+    if (addr) {
+        g_real_apkhash_ctor = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourApkHashChecker_ctor, (void**)&g_real_apkhash_ctor) != 0) {
+            printf("[!] DobbyHook failed: ApkHashChecker_ctor at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked ApkHashChecker_ctor at 0x%lx\n", addr);
+        }
+    }
+
+    // SessionGuard_Revoke
+    FindOffsetByName("SessionGuard_Revoke", &addr);
+    if (addr) {
+        g_real_sessionguard_revoke = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourSessionGuard_Revoke, (void**)&g_real_sessionguard_revoke) != 0) {
+            printf("[!] DobbyHook failed: SessionGuard_Revoke at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked SessionGuard_Revoke at 0x%lx\n", addr);
+        }
+    }
+
+    // SessionGuard_Reset
+    FindOffsetByName("SessionGuard_Reset", &addr);
+    if (addr) {
+        g_real_sessionguard_reset = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourSessionGuard_Reset, (void**)&g_real_sessionguard_reset) != 0) {
+            printf("[!] DobbyHook failed: SessionGuard_Reset at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked SessionGuard_Reset at 0x%lx\n", addr);
+        }
+    }
+
+    // ScarletVersion_cctor
+    FindOffsetByName("ScarletVersion_cctor", &addr);
+    if (addr) {
+        g_real_scarletversion_cctor = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourScarletVersion_cctor, (void**)&g_real_scarletversion_cctor) != 0) {
+            printf("[!] DobbyHook failed: ScarletVersion_cctor at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked ScarletVersion_cctor at 0x%lx\n", addr);
+        }
+    }
+
+    // ScarletVersion_GetVersion
+    FindOffsetByName("ScarletVersion_GetVersion", &addr);
+    if (addr) {
+        g_real_scarletversion_getversion = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourScarletVersion_GetVersion, (void**)&g_real_scarletversion_getversion) != 0) {
+            printf("[!] DobbyHook failed: ScarletVersion_GetVersion at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked ScarletVersion_GetVersion at 0x%lx\n", addr);
+        }
+    }
+
+    // PublishLook
+    FindOffsetByName("PublishLook", &addr);
+    if (addr) {
+        g_real_publishlook = (void*)addr;
+        if (DobbyHook((void*)addr, (void*)DetourPublishLook, (void**)&g_real_publishlook) != 0) {
+            printf("[!] DobbyHook failed: PublishLook at 0x%lx\n", addr);
+        } else {
+            printf("[+] Hooked PublishLook at 0x%lx\n", addr);
+        }
+    }
+
     UpdatePlayerList();
+    printf("[+] All hooks installed successfully\n");
 }
 
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
