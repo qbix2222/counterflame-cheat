@@ -5,117 +5,70 @@
 #import <UIKit/UIKit.h>
 
 #include <imgui.h>
-#include <imgui_impl_metal.h>
+#import <imgui_impl_metal.h>
 
-// === Globals ===
-static bool g_menu_initialized = false;
-static id<MTLDevice> g_metal_device = nil;
-static id<MTLCommandQueue> g_metal_queue = nil;
-static MTKView* g_mtk_view = nil;
-static CADisplayLink* g_display_link = nil;
-static UIView* g_overlay_view = nil;
-
-extern bool g_menu_visible;
-float g_menu_slide = 0.0f;
-float g_menu_target = 0.0f;
-
-static ImVec4 g_accent_color   = ImVec4(0.0f, 1.0f, 0.5f, 1.0f);
-static ImVec4 g_accent_color_alt = ImVec4(0.0f, 0.7f, 1.0f, 1.0f);
-static ImVec4 g_bg_color       = ImVec4(0.08f, 0.08f, 0.10f, 0.97f);
-static ImVec4 g_panel_color    = ImVec4(0.10f, 0.10f, 0.12f, 0.98f);
-static ImVec4 g_text_color     = ImVec4(0.95f, 0.95f, 0.97f, 1.00f);
-static ImVec4 g_text_dim_color = ImVec4(0.60f, 0.60f, 0.65f, 1.00f);
-
-extern int   g_menu_font_size;
-extern float g_menu_opacity;
-extern float g_menu_scale;
-extern int   g_menu_position;
-extern float g_menu_anim_speed;
-
-static void DrawStyledCheckbox(const char* label, bool* value) {
-    ImGui::Checkbox(label, value);
-    if (*value) {
-        ImGui::SameLine();
-        ImGui::TextColored(g_accent_color, "ON");
-    } else {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f), "OFF");
-    }
+// ========== DisplayLink Target (для iOS 18+) ==========
+@interface DisplayLinkTarget : NSObject
+@end
+@implementation DisplayLinkTarget
+- (void)fire:(CADisplayLink *)link {
+    extern void UpdateFeaturesReal();
+    UpdateFeaturesReal();
 }
-
-// === CADisplayLink callback ===
-static void DisplayLinkCallback(CADisplayLink* link) {
-    if (!g_menu_initialized || !g_menu_visible) return;
-    
-    // Update animation
-    float dt = 1.0f / 60.0f;
-    float target = g_menu_visible ? 1.0f : 0.0f;
-    g_menu_slide += (target - g_menu_slide) * g_menu_anim_speed * dt;
-    if (fabsf(g_menu_slide - target) < 0.005f) g_menu_slide = target;
-    
-    if (!g_menu_visible && g_menu_slide < 0.001f) return;
-    
-    // Trigger MTKView redraw
-    [g_mtk_view setNeedsDisplay];
-}
-
-// === MTKView delegate ===
-@interface ImGuiMTKViewDelegate : NSObject <MTKViewDelegate>
 @end
 
+// ========== MTKView Delegate ==========
+@interface ImGuiMTKViewDelegate : NSObject <MTKViewDelegate>
+@end
 @implementation ImGuiMTKViewDelegate
-
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(size.width, size.height);
 }
-
 - (void)drawInMTKView:(MTKView*)view {
     if (!g_menu_initialized) return;
-    
     MTLRenderPassDescriptor *rpd = view.currentRenderPassDescriptor;
     id<MTLDrawable> drawable = view.currentDrawable;
     if (!rpd || !drawable) return;
-    
+
     ImGui_ImplMetal_NewFrame(rpd);
     ImGui::NewFrame();
-    
-    // Build menu UI
+
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 ws = io.DisplaySize;
-    
+
     float panelW = ws.x * 0.92f;
     float panelH = ws.y * 0.45f;
     float panelX = (ws.x - panelW) * 0.5f;
     float panelY = ws.y - panelH + panelH * (1.0f - g_menu_slide);
-    
+
     ImGui::SetNextWindowPos(ImVec2(panelX, panelY), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(panelW, panelH), ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, g_menu_opacity * g_menu_slide);
-    
+
     ImGui::Begin("CounterFlame Internal", &g_menu_visible,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                  ImGuiWindowFlags_NoBringToFrontOnFocus |
                  ImGuiWindowFlags_NoSavedSettings);
-    
+
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 winPos = ImGui::GetWindowPos();
     ImVec2 winSize = ImGui::GetWindowSize();
-    
+
     dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + winSize.y),
                       ImGui::ColorConvertFloat4ToU32(ImVec4(0.10f, 0.10f, 0.12f, 0.98f)), 12.0f);
     dl->AddRectFilled(ImVec2(winPos.x, winPos.y),
                       ImVec2(winPos.x + winSize.x, winPos.y + 3.0f),
                       ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 1.0f, 0.5f, 1.0f)), 2.0f);
-    
+
     // Tabs
     static int tab = 0;
     const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin" };
     int tabCount = 8;
     float tabW = (winSize.x - 32.0f) / tabCount;
     float tabH = 40.0f;
-    
+
     for (int i = 0; i < tabCount; i++) {
         ImVec2 tp(winPos.x + 16.0f + i * tabW, winPos.y + 30.0f);
         bool active = (tab == i);
@@ -131,78 +84,78 @@ static void DisplayLinkCallback(CADisplayLink* link) {
         if (ImGui::Button(tabs[i], ImVec2(tabW - 16.0f, tabH - 16.0f))) tab = i;
         ImGui::PopStyleColor(3);
     }
-    
+
     ImGui::SetCursorPos(ImVec2(20.0f, 46.0f));
     ImGui::BeginChild("##MenuContent", ImVec2(winSize.x - 40.0f, winSize.y - 56.0f),
                       false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
-    
+
     if (tab == 0) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "AIMBOT");
         ImGui::Separator();
-        DrawStyledCheckbox("Silent Aim", &g_silent_aim);
+        ImGui::Checkbox("Silent Aim", &g_silent_aim);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Кроссхэир на месте, пуля в цель");
         ImGui::SliderFloat("FOV", &g_fov, 1.0f, 90.0f, "%.1f°");
         ImGui::SliderFloat("Max Dist", &g_max_distance, 10.0f, 500.0f, "%.0f м");
         ImGui::Combo("Bone", &g_target_bone, "Head\0Body\0Neck\0");
-        DrawStyledCheckbox("Predictive Aim", &g_predictive_aim);
+        ImGui::Checkbox("Predictive Aim", &g_predictive_aim);
         ImGui::SliderInt("Pred (ms)", &g_prediction_ms, 0, 500, "%d мс");
     } else if (tab == 1) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "ANTI-AIM");
         ImGui::Separator();
-        DrawStyledCheckbox("Spinbot", &g_spin_enabled);
+        ImGui::Checkbox("Spinbot", &g_spin_enabled);
         ImGui::Combo("Mode", &g_spin_mode, "Off\0Spin\0Jitter\0Static\0");
         ImGui::SliderFloat("Speed", &g_spin_speed, 10.0f, 720.0f, "%.0f deg/s");
-        DrawStyledCheckbox("Invert X", &g_spin_invert_x);
+        ImGui::Checkbox("Invert X", &g_spin_invert_x);
     } else if (tab == 2) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "VISUALS / ESP");
         ImGui::Separator();
-        DrawStyledCheckbox("ESP Boxes", &g_esp_boxes);
+        ImGui::Checkbox("ESP Boxes", &g_esp_boxes);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Боксы вокруг врагов");
-        DrawStyledCheckbox("ESP Names", &g_esp_names);
-        DrawStyledCheckbox("ESP Distance", &g_esp_distance);
-        DrawStyledCheckbox("Chams", &g_chams_enabled);
+        ImGui::Checkbox("ESP Names", &g_esp_names);
+        ImGui::Checkbox("ESP Distance", &g_esp_distance);
+        ImGui::Checkbox("Chams", &g_chams_enabled);
         ImGui::SameLine(); ImGui::ColorEdit3("Chams Color", &g_chams_r);
     } else if (tab == 3) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "WEAPON");
         ImGui::Separator();
-        DrawStyledCheckbox("No Recoil", &g_no_recoil);
+        ImGui::Checkbox("No Recoil", &g_no_recoil);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Убирает отдачу");
-        DrawStyledCheckbox("No Spread", &g_no_spread);
+        ImGui::Checkbox("No Spread", &g_no_spread);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Убирает разброс");
     } else if (tab == 4) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "MOVEMENT");
         ImGui::Separator();
-        DrawStyledCheckbox("Bunnyhop", &g_bunnyhop);
+        ImGui::Checkbox("Bunnyhop", &g_bunnyhop);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Автопрыжок");
     } else if (tab == 5) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "CHAT");
         ImGui::Separator();
-        DrawStyledCheckbox("Chat Spam", &g_chat_spam);
+        ImGui::Checkbox("Chat Spam", &g_chat_spam);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Автосообщения");
         ImGui::SliderFloat("Interval", &g_spam_interval, 1.0f, 10.0f, "%.1f с");
     } else if (tab == 6) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "ANTI-BAN");
         ImGui::Separator();
-        DrawStyledCheckbox("HWID Spoof", &g_hwid_spoof);
+        ImGui::Checkbox("HWID Spoof", &g_hwid_spoof);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Подмена ID");
-        DrawStyledCheckbox("Bypass ACTk", &g_bypass_actk);
+        ImGui::Checkbox("Bypass ACTk", &g_bypass_actk);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Обход Anti-Cheat Toolkit");
-        DrawStyledCheckbox("Bypass Version", &g_bypass_version);
+        ImGui::Checkbox("Bypass Version", &g_bypass_version);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Обход версии");
-        DrawStyledCheckbox("Bypass RootDetect", &g_bypass_rootdetect);
+        ImGui::Checkbox("Bypass RootDetect", &g_bypass_rootdetect);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Обход джейлбрейк детекта");
     } else if (tab == 7) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "SKIN CHANGER");
         ImGui::Separator();
-        DrawStyledCheckbox("Skin Changer", &g_skin_changer_enabled);
+        ImGui::Checkbox("Skin Changer", &g_skin_changer_enabled);
         ImGui::SameLine(); ImGui::TextColored(ImVec4(0.6f,0.6f,0.65f,1.0f), "Видно всем");
         ImGui::SliderInt("Skin ID", &g_skin_id, 1, 1000, "%d");
         ImGui::SliderInt("Seed", &g_skin_seed, 1, 9999, "%d");
-        DrawStyledCheckbox("StatTrak", &g_skin_stattrak);
+        ImGui::Checkbox("StatTrak", &g_skin_stattrak);
         ImGui::SameLine(); ImGui::SliderInt("StatTrak Value", &g_stattrak_value, 0, 9999, "%d");
-        DrawStyledCheckbox("Update Players", &g_skin_update_players);
+        ImGui::Checkbox("Update Players", &g_skin_update_players);
     }
-    
+
     ImGui::EndChild();
     ImGui::Spacing();
     ImGui::Separator();
@@ -211,7 +164,7 @@ static void DisplayLinkCallback(CADisplayLink* link) {
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "STATUS: ACTIVE");
     ImGui::End();
-    
+
     // Render
     id<MTLCommandBuffer> cmdBuf = [g_metal_queue commandBuffer];
     if (cmdBuf) {
@@ -224,30 +177,60 @@ static void DisplayLinkCallback(CADisplayLink* link) {
         [cmdBuf commit];
     }
 }
-
 @end
 
 static ImGuiMTKViewDelegate* g_delegate = nil;
 
-// === Menu Functions ===
+// ========== ГЛОБАЛЫ МЕНЮ ==========
+static bool g_menu_initialized = false;
+static id<MTLDevice> g_metal_device = nil;
+static id<MTLCommandQueue> g_metal_queue = nil;
+static MTKView* g_mtk_view = nil;
+static CADisplayLink* g_display_link = nil;
+static UIView* g_overlay_view = nil;
+
+extern bool g_menu_visible;
+float g_menu_slide = 0.0f;
+float g_menu_target = 0.0f;
+
+// ========== МЕНЮ ФУНКЦИИ ==========
 extern "C" void MenuInit() {
     if (g_menu_initialized) return;
-    
-    // Get key window
-    UIWindow* window = [UIApplication sharedApplication].keyWindow;
+
+    // Получаем ключевое окно через connectedScenes (iOS 13+)
+    UIWindow* window = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIScene* scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive &&
+                [scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene* windowScene = (UIWindowScene*)scene;
+                for (UIWindow* w in windowScene.windows) {
+                    if (w.isKeyWindow) {
+                        window = w;
+                        break;
+                    }
+                }
+                if (window) break;
+            }
+        }
+    } else {
+        window = [UIApplication sharedApplication].keyWindow;
+    }
+
     if (!window) {
-        // Wait for window
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            MenuInit();
-        });
+        // Повтори попытку через 0.5 секунды (не бесконечный цикл)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+                           MenuInit();
+                       });
         return;
     }
-    
+
     g_metal_device = MTLCreateSystemDefaultDevice();
     if (!g_metal_device) return;
     g_metal_queue = [g_metal_device newCommandQueue];
-    
-    // Create MTKView for Metal rendering
+
+    // MTKView для рендеринга ImGui через Metal
     CGRect frame = window.bounds;
     g_mtk_view = [[MTKView alloc] initWithFrame:frame device:g_metal_device];
     g_mtk_view.framebufferOnly = YES;
@@ -256,14 +239,14 @@ extern "C" void MenuInit() {
     g_mtk_view.enableSetNeedsDisplay = YES;
     g_mtk_view.hidden = !g_menu_visible;
     g_mtk_view.backgroundColor = [UIColor clearColor];
-    
+
     g_delegate = [[ImGuiMTKViewDelegate alloc] init];
     g_mtk_view.delegate = g_delegate;
-    
+
     [window addSubview:g_mtk_view];
     [window bringSubviewToFront:g_mtk_view];
-    
-    // ImGui setup
+
+    // ImGui контекст
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -271,7 +254,7 @@ extern "C" void MenuInit() {
     io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.DisplaySize = ImVec2(frame.size.width, frame.size.height);
-    
+
     ImGui::StyleColorsDark();
     ImGuiStyle& s = ImGui::GetStyle();
     s.WindowPadding = ImVec2(12, 12);
@@ -282,31 +265,34 @@ extern "C" void MenuInit() {
     s.GrabMinSize = 14.0f;
     s.GrabRounding = 8.0f;
     s.TabRounding = 10.0f;
-    
+
     ImVec4* colors = s.Colors;
-    colors[ImGuiCol_WindowBg] = ImVec4(0.08f, 0.08f, 0.10f, 0.97f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.15f, 0.17f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    colors[ImGuiCol_WindowBg]      = ImVec4(0.08f, 0.08f, 0.10f, 0.97f);
+    colors[ImGuiCol_FrameBg]       = ImVec4(0.15f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]= ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     colors[ImGuiCol_FrameBgActive] = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    colors[ImGuiCol_Button]        = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     colors[ImGuiCol_ButtonHovered] = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    colors[ImGuiCol_ButtonActive]  = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
+    colors[ImGuiCol_Header]        = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     colors[ImGuiCol_HeaderHovered] = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
-    colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.97f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.65f, 1.00f);
-    
+    colors[ImGuiCol_HeaderActive]  = ImVec4(0.0f, 1.0f, 0.5f, 1.00f);
+    colors[ImGuiCol_Text]          = ImVec4(0.95f, 0.95f, 0.97f, 1.00f);
+    colors[ImGuiCol_TextDisabled]  = ImVec4(0.60f, 0.60f, 0.65f, 1.00f);
+
     ImGui_ImplMetal_Init(g_metal_device);
-    
-    // CADisplayLink for 60fps updates
-    g_display_link = [CADisplayLink displayLinkWithTarget:[[NSObject alloc] init] selector:@selector(fire:)];
-    [g_display_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-    
-    // Swizzle fire: to call our C function
-    // We'll use a block-based approach
+
+    // CADisplayLink через UIWindowScene (iOS 18+)
+    DisplayLinkTarget* target = [[DisplayLinkTarget alloc] init];
+    UIWindowScene* windowScene = (UIWindowScene*)window.windowScene;
+    if (windowScene) {
+        g_display_link = [windowScene displayLinkWithTarget:target selector:@selector(fire:)];
+    } else {
+        g_display_link = [CADisplayLink displayLinkWithTarget:target selector:@selector(fire:)];
+    }
     g_display_link.preferredFramesPerSecond = 60;
-    
+    [g_display_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+
     g_menu_initialized = true;
 }
 
@@ -324,6 +310,6 @@ extern "C" void MenuSetOpen(bool open) {
 }
 
 extern "C" void MenuRender(float dt, void* renderPassDescriptor) {
-    // Not used with MTKView/CADisplayLink approach
+    // Не используется с MTKView/CADisplayLink подходом
     (void)dt; (void)renderPassDescriptor;
 }

@@ -7,8 +7,6 @@
 #include <unordered_map>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
-#include <mach/mach.h>
-#include <mach/vm_map.h>
 
 typedef uintptr_t UPtr;
 
@@ -31,17 +29,33 @@ struct IL2CPPResolver {
         if (!hmod) return false;
 
         static const char* exports[] = {
-            "il2cpp_init", "il2cpp_domain_get", "il2cpp_thread_attach",
-            "il2cpp_class_from_name", "il2cpp_class_get_fields",
-            "il2cpp_class_get_method_from_name", "il2cpp_class_get_property_from_name",
-            "il2cpp_field_get_offset", "il2cpp_field_get_name", "il2cpp_field_get_type",
-            "il2cpp_method_get_name", "il2cpp_method_get_param_count",
-            "il2cpp_method_get_param", "il2cpp_method_get_return_type",
-            "il2cpp_type_get_name", "il2cpp_object_new",
-            "il2cpp_runtime_invoke", "il2cpp_string_new",
-            "il2cpp_assembly_get_image", "il2cpp_image_get_name",
-            "il2cpp_domain_get_assemblies", "il2cpp_class_get_type",
-            "il2cpp_image_get_class_count", "il2cpp_image_get_class",
+            "il2cpp_init",
+            "il2cpp_domain_get",
+            "il2cpp_thread_attach",
+            "il2cpp_class_from_name",
+            "il2cpp_class_get_fields",
+            "il2cpp_class_get_method_from_name",
+            "il2cpp_class_get_field_from_name",   // <-- обязательно для поиска полей
+            "il2cpp_class_get_property_from_name",
+            "il2cpp_field_get_offset",
+            "il2cpp_field_get_name",
+            "il2cpp_field_get_type",
+            "il2cpp_field_static_get_value",
+            "il2cpp_field_static_set_value",
+            "il2cpp_method_get_name",
+            "il2cpp_method_get_param_count",
+            "il2cpp_method_get_param",
+            "il2cpp_method_get_return_type",
+            "il2cpp_type_get_name",
+            "il2cpp_object_new",
+            "il2cpp_runtime_invoke",
+            "il2cpp_string_new",                   // <-- обязательно для управляемых строк
+            "il2cpp_assembly_get_image",
+            "il2cpp_image_get_name",
+            "il2cpp_domain_get_assemblies",
+            "il2cpp_class_get_type",
+            "il2cpp_image_get_class_count",
+            "il2cpp_image_get_class",
             nullptr
         };
 
@@ -91,33 +105,15 @@ struct IL2CPPResolver {
         return Invoke<uint32_t>("il2cpp_field_get_offset", field);
     }
 
-    // Чтение/запись памяти через vm_write (non-jb safe)
     template <typename T>
     T Read(void* base, uint32_t offset) {
         return *reinterpret_cast<T*>((uintptr_t)base + offset);
     }
 
+    // Запись ТОЛЬКО в данные (не в код!). Не вызывает SIGKILL от AMFI.
     template <typename T>
     void Write(void* base, uint32_t offset, T value) {
         *reinterpret_cast<T*>((uintptr_t)base + offset) = value;
-    }
-
-    // Патчинг байтов в памяти (vm_write для non-jb)
-    bool PatchBytes(void* addr, const void* data, size_t size) {
-        if (!addr) return false;
-        kern_return_t kr = vm_protect(mach_task_self(), (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-        if (kr != KERN_SUCCESS) return false;
-        kr = vm_write(mach_task_self(), (vm_address_t)addr, (vm_offset_t)data, (mach_msg_type_number_t)size);
-        return kr == KERN_SUCCESS;
-    }
-
-    // NOP патч (4 байта ARM64 NOP = 0xD503201F)
-    bool Nop(void* addr, size_t count = 1) {
-        uint32_t nop = 0xD503201F;
-        for (size_t i = 0; i < count; i++) {
-            if (!PatchBytes((char*)addr + i * 4, &nop, 4)) return false;
-        }
-        return true;
     }
 };
 

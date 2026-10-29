@@ -18,6 +18,8 @@ typedef int32_t   S32;
 typedef uint32_t  U32;
 typedef uint8_t   U8;
 typedef float     F32;
+typedef int64_t   S64;
+typedef uint64_t  U64;
 
 struct Vec2  { F32 x, y; };
 struct Vec3  { F32 x, y, z; };
@@ -26,7 +28,43 @@ struct Color { F32 r, g, b, a; };
 
 static inline Vec3 V3(F32 x, F32 y, F32 z) { return Vec3{ x, y, z }; }
 
-// === Cheat Config ===
+// === RVAs функций UnityFramework (из dump.cs) ===
+struct Offsets {
+    // GameObject / Component
+    static constexpr UPtr GameObject_Find           = 0x2BAB388;
+    static constexpr UPtr Component_GetComponent    = 0x2BAA268;
+    static constexpr UPtr Component_get_transform   = 0x2BAA1E8; // Transform get_transform()
+
+    // Transform
+    static constexpr UPtr Transform_get_position    = 0x2BB4894;
+    static constexpr UPtr Transform_set_rotation    = 0x2BB4B58;
+    static constexpr UPtr Transform_get_forward     = 0x2BB4DE4;
+
+    // Camera
+    static constexpr UPtr Camera_WorldToScreenPoint = 0x2B73E5C;
+    static constexpr UPtr Camera_get_main           = 0x2B741F0;
+
+    // Input
+    static constexpr UPtr Input_GetButton           = 0x24DCF0C;
+
+    // Chat
+    static constexpr UPtr SendChatMessage           = 0x158D6B0;
+
+    // Anti-cheat bypass targets (данные, а не код!)
+    static constexpr UPtr RootDetect_Checkroot      = 0x140EDF0;
+    static constexpr UPtr ApkHashChecker_ctor       = 0x126F358;
+    static constexpr UPtr SessionGuard_Revoke       = 0x13F0128;
+    static constexpr UPtr SessionGuard_Reset        = 0x13F03D4;
+    static constexpr UPtr ScarletVersion_cctor      = 0x13F044C;
+    static constexpr UPtr ScarletVersion_GetVersion = 0x13F0658;
+    static constexpr UPtr PublishLook               = 0x1275CBC;
+    static constexpr UPtr WallHackDetector_Start    = 0x12388F0;
+    static constexpr UPtr ShootRaycastModule        = 0x1239F20;
+    static constexpr UPtr CharacterController_isGrounded = 0x2BFCC04;
+    static constexpr UPtr SystemInfo_deviceUniqueIdentifier = 0x2BB19D8;
+};
+
+// === Cheat Config (хранит настройки меню) ===
 struct CheatConfig {
     bool  silent_aim = false;
     float fov = 25.0f;
@@ -71,7 +109,7 @@ struct CheatConfig {
 extern UPtr g_unity_base;
 extern CheatConfig g_config;
 
-// === Globals (mirror config for menu) ===
+// === Глобальное состояние (зеркало конфига для меню) ===
 extern bool  g_silent_aim;
 extern float g_fov;
 extern int   g_target_bone;
@@ -111,28 +149,33 @@ extern bool  g_skin_stattrak;
 extern int   g_stattrak_value;
 extern bool  g_skin_update_players;
 
-// Menu state
+// Состояние меню
 extern bool  g_menu_visible;
-extern float g_menu_slide_offset;
+extern float g_menu_opacity;
+extern float g_menu_scale;
+extern int   g_menu_position;
 extern float g_menu_anim_speed;
 extern int   g_menu_font_size;
 
-// === Functions ===
-void InstallAllPatches();
+// === Функции ===
+void InstallAllPatches();           // безопасная инициализация (не хук кода)
 void Config_Load();
 void Config_Save();
 
+void  UpdatePlayerList();
 void* GetLocalPlayer();
 void* GetCamera();
 int   GetPlayerCount();
 void* GetPlayer(int idx);
 Vec3  GetPlayerPosition(void* player);
+Vec3  GetCameraForward();
 Vec3  WorldToScreenPoint(Vec3 world);
 float Distance3D(Vec3 a, Vec3 b);
 void  ChatSpamUpdate(float dt);
-void  UpdateFeatures();  // Вызывается каждый кадр для обновления читов
+void  UpdateFeaturesReal();         // основной цикл: античит, спинбот, оружие
+void  ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
 
-// Menu
+// === Menu (Objective-C++) ===
 extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();

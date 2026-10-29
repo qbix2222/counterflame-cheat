@@ -2,15 +2,14 @@
 set -e
 
 # Build for non-jailbreak iOS arm64 via Sideloadly
-# No Dobby required — uses vm_write for memory patching (safe on non-jb)
+# NO Dobby — uses vm_protect/vm_write only for data (not code), IL2CPP resolver, CADisplayLink+MTKView menu
 
 SDK=$(xcrun --sdk iphoneos --show-sdk-path)
 CLANG=$(xcrun --sdk iphoneos --find clang 2>/dev/null || echo "clang")
 ARCH=arm64
 
-echo "Building CounterFlameCheat.dylib for iOS arm64 (non-jailbreak)..."
+echo "Building CounterFlameCheat.dylib for iOS arm64 (non-jailbreak, no Dobby)..."
 
-# Compile ImGui + our code
 $CLANG -arch $ARCH -isysroot "$SDK" \
     -I. -I./imgui -I./imgui/backends \
     -framework Metal -framework MetalKit -framework QuartzCore -framework UIKit -framework Foundation \
