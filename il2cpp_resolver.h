@@ -105,9 +105,9 @@ struct IL2CPPResolver {
     // Патчинг байтов в памяти (vm_write для non-jb)
     bool PatchBytes(void* addr, const void* data, size_t size) {
         if (!addr) return false;
-        kern_return_t kr = mach_vm_protect(mach_task_self(), (mach_vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+        kern_return_t kr = vm_protect(mach_task_self(), (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
         if (kr != KERN_SUCCESS) return false;
-        kr = mach_vm_write(mach_task_self(), (mach_vm_address_t)addr, (vm_offset_t)data, (mach_msg_type_number_t)size);
+        kr = vm_write(mach_task_self(), (vm_address_t)addr, (vm_offset_t)data, (mach_msg_type_number_t)size);
         return kr == KERN_SUCCESS;
     }
 

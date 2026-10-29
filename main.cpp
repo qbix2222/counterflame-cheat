@@ -20,7 +20,7 @@ static UPtr GetModuleBase(const char* name) {
 int main(int argc, char** argv) {
     UPtr base = GetModuleBase("UnityFramework");
     if (base) {
-        InstallAllPatches(base);
+        InstallAllPatches();
     }
     return 0;
 }
