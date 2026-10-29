@@ -5,11 +5,6 @@
 #include <mach/mach.h>
 #include <mach/vm_map.h>
 #include <pthread.h>
-#include <objc/objc.h>
-#include <objc/runtime.h>
-#include <objc/message.h>
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
 
 // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
 UPtr g_unity_base = 0;
@@ -46,39 +41,46 @@ static const char* g_spam_msgs[] = {
     "ESP и сайлент аим включены", "Антибан активен", "Скин ченджер активен", NULL
 };
 
-// ========== ЛОГИРОВАНИЕ ==========
-static NSString* g_log_path = nil;
-
-static NSString* GetLogPath() {
-    if (!g_log_path) {
-        NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-        if (paths.count > 0) {
-            g_log_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.log"];
-        } else {
-            g_log_path = @"/var/mobile/Containers/Data/Application/counterflame_cheat.log";
+// ========== ЛОГИРОВАНИЕ через stderr (попадает в системный лог iOS) ==========
+static const char* GetLogPath() {
+    static char path[512] = {0};
+    if (path[0] == 0) {
+        // Пробуем несколько путей
+        const char* candidates[] = {
+            getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp",
+            "/var/mobile/Containers/Data/Application",
+            "/tmp",
+            "."
+        };
+        for (int i = 0; i < 4; i++) {
+            if (candidates[i] && candidates[i][0]) {
+                snprintf(path, sizeof(path), "%s/counterflame_cheat.log", candidates[i]);
+                break;
+            }
         }
     }
-    return g_log_path;
+    return path;
 }
 
-void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
-void CFLog(const char* fmt, ...) {
+static void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
+static void CFLog(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     char buf[1024];
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
 
-    // Пишем в файл
-    FILE* f = fopen([GetLogPath() UTF8String], "a");
+    // В stderr (попадает в системный лог iOS через asl/syslog)
+    fprintf(stderr, "[CF] %s\n", buf);
+    fflush(stderr);
+
+    // Также в файл
+    FILE* f = fopen(GetLogPath(), "a");
     if (f) {
         fprintf(f, "[CF] %s\n", buf);
         fflush(f);
         fclose(f);
     }
-
-    // Пишем в NSLog (попадает в системный лог iPad)
-    NSLog(@"[CF] %s", buf);
 }
 
 #define LOG(fmt, ...) CFLog(fmt, ##__VA_ARGS__)
@@ -199,7 +201,7 @@ static void ChatSpamUpdateReal(float dt) {
     }
 }
 
-// ========== СПИНБОТ (через вызов метода) ==========
+// ========== СПИНБОТ ==========
 static void UpdateSpinbot() {
     if (!g_spin_enabled) return;
     void* local = GetLocalPlayerReal();
@@ -328,7 +330,6 @@ void UpdateFeaturesReal() {
 
     UpdateGameState();
     if (!g_local_player_obj) {
-        //LOG("Local player not found yet");
         return;
     }
 
@@ -344,12 +345,20 @@ void InstallAllPatches() {
 }
 
 void Config_Load() {
-    NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    if (paths.count == 0) return;
-    NSString* cfg_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.cfg"];
+    // Используем простой путь в /tmp
+    static char cfg_path[512] = {0};
+    if (cfg_path[0] == 0) {
+        snprintf(cfg_path, sizeof(cfg_path), "%s/counterflame_cheat.cfg", GetLogPath());
+        // Убираем имя файла из пути, оставляем только директорию
+        char* last_slash = strrchr(cfg_path, '/');
+        if (last_slash) *last_slash = 0;
+    }
 
-    FILE* f = fopen([cfg_path UTF8String], "rb");
-    if (!f) return;
+    FILE* f = fopen(cfg_path, "rb");
+    if (!f) {
+        LOG("Config file not found at %s", cfg_path);
+        return;
+    }
     fread(&g_config, sizeof(CheatConfig), 1, f);
     fclose(f);
 
@@ -386,7 +395,7 @@ void Config_Load() {
     g_stattrak_value = g_config.stattrak_value;
     g_skin_update_players = g_config.skin_update_players;
 
-    LOG("Config loaded from %s", [cfg_path UTF8String]);
+    LOG("Config loaded from %s", cfg_path);
 }
 
 void Config_Save() {
@@ -423,16 +432,19 @@ void Config_Save() {
     g_config.stattrak_value = g_stattrak_value;
     g_config.skin_update_players = g_skin_update_players;
 
-    NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    if (paths.count == 0) return;
-    NSString* cfg_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.cfg"];
+    static char cfg_path[512] = {0};
+    if (cfg_path[0] == 0) {
+        snprintf(cfg_path, sizeof(cfg_path), "%s/counterflame_cheat.cfg", GetLogPath());
+        char* last_slash = strrchr(cfg_path, '/');
+        if (last_slash) *last_slash = 0;
+    }
 
-    FILE* f = fopen([cfg_path UTF8String], "wb");
+    FILE* f = fopen(cfg_path, "wb");
     if (!f) return;
     fwrite(&g_config, sizeof(CheatConfig), 1, f);
     fclose(f);
 
-    LOG("Config saved to %s", [cfg_path UTF8String]);
+    LOG("Config saved to %s", cfg_path);
 }
 
 // ========== ОБЁРТКИ ДЛЯ МЕНЮ ==========
@@ -451,21 +463,18 @@ void UpdateFeatures() { UpdateFeaturesReal(); }
 
 // ========== КОНСТРУКТОР ==========
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    // Первым делом — лог в системный консоль (NSLog)
-    NSLog(@"[CF] CounterFlameCheat dylib loaded (constructor)");
+    // Первым делом — в stderr (системный лог iOS)
+    fprintf(stderr, "[CF] CounterFlameCheat dylib loaded (constructor)\n");
+    fflush(stderr);
 
     // Пытаемся создать лог-файл
-    NSString* logPath = GetLogPath();
-    FILE* f = fopen([logPath UTF8String], "w");
+    FILE* f = fopen(GetLogPath(), "w");
     if (f) {
         fprintf(f, "[CF] Constructor started\n");
         fclose(f);
     }
 
     LOG("Constructor: dylib loaded, waiting for UnityFramework...");
-
-    // НЕ вызываем InstallAllPatches здесь! UnityFramework ещё не загружен.
-    // Инициализация произойдёт в UpdateFeaturesReal() при первом тике CADisplayLink.
 
     MenuInit();
 
