@@ -10,52 +10,23 @@
 #include <vector>
 #include <algorithm>
 #include <random>
-#include <unordered_map>
+
+#include "il2cpp_resolver.h"
 
 typedef uintptr_t UPtr;
 typedef int32_t   S32;
 typedef uint32_t  U32;
 typedef uint8_t   U8;
 typedef float     F32;
-typedef int64_t   S64;
-typedef uint64_t  U64;
 
 struct Vec2  { F32 x, y; };
 struct Vec3  { F32 x, y, z; };
 struct Quat  { F32 x, y, z, w; };
 struct Color { F32 r, g, b, a; };
 
-static inline Vec3 V3(F32 x, F32 y, F32 z) { Vec3 v{ x,y,z }; return v; }
+static inline Vec3 V3(F32 x, F32 y, F32 z) { return Vec3{ x, y, z }; }
 
-struct Offset { const char* name; UPtr rva; };
-
-// Real RVAs from dump.cs (CounterFlame 1.3.0.1)
-static const Offset g_offsets[] = {
-    { "FirePellets",                       0x12783E4 },
-    { "Transform_set_rotation",            0x2BB4B58 },
-    { "Transform_get_position",            0x2BB4894 },
-    { "Transform_get_forward",             0x2BB4DE4 },
-    { "Input_GetButton",                   0x24DCF0C },
-    { "SendChatMessage",                   0x158D6B0 },
-    { "SystemInfo_deviceUniqueIdentifier", 0x2BB19D8 },
-    { "WallHackDetector_StartDetection",   0x12388F0 },
-    { "ShootRaycastModule",                0x1239F20 },
-    { "RootDetect_Checkroot",              0x140EDF0 },
-    { "ApkHashChecker_ctor",               0x126F358 },
-    { "SessionGuard_Revoke",               0x13F0128 },
-    { "SessionGuard_Reset",                0x13F03D4 },
-    { "SessionGuard_cctor",                0x13F044C },
-    { "ScarletVersion_GetVersion",         0x13F0658 },
-    { "ScarletVersion_cctor",              0x13F044C },
-    { "GameObject_Find",                   0x2BAB388 },
-    { "Component_GetComponent",            0x2BAA268 },
-    { "PublishLook",                       0x1275CBC },
-    { "CharacterController_isGrounded",    0x2BFCC04 },
-    { "Camera_main",                       0x2B741F0 },
-    { "Camera_WorldToScreenPoint",         0x2B73E5C },
-    { 0, 0 }
-};
-
+// === Cheat Config ===
 struct CheatConfig {
     bool  silent_aim = false;
     float fov = 25.0f;
@@ -97,8 +68,10 @@ struct CheatConfig {
     bool  skin_update_players = true;
 };
 
-extern UPtr g_base;
+extern UPtr g_unity_base;
+extern CheatConfig g_config;
 
+// === Globals (mirror config for menu) ===
 extern bool  g_silent_aim;
 extern float g_fov;
 extern int   g_target_bone;
@@ -138,49 +111,30 @@ extern bool  g_skin_stattrak;
 extern int   g_stattrak_value;
 extern bool  g_skin_update_players;
 
-extern bool  g_menu_open;
+// Menu state
 extern bool  g_menu_visible;
 extern float g_menu_slide_offset;
-extern bool  g_menu_toggle_btn;
-extern bool  g_menu_tweaks_enabled;
-extern float g_menu_opacity;
-extern float g_menu_scale;
-extern int   g_menu_position;
 extern float g_menu_anim_speed;
 extern int   g_menu_font_size;
 
-extern CheatConfig g_config;
-
-void InstallAllHooks(UPtr base);
+// === Functions ===
+void InstallAllPatches(UPtr base = 0);           // Основная установка патчей через vm_write
 void Config_Load();
 void Config_Save();
 
-void  UpdatePlayerList();
 void* GetLocalPlayer();
 void* GetCamera();
 int   GetPlayerCount();
 void* GetPlayer(int idx);
 Vec3  GetPlayerPosition(void* player);
-Vec3  GetCameraForward();
 Vec3  WorldToScreenPoint(Vec3 world);
 float Distance3D(Vec3 a, Vec3 b);
-void  ChatSpamUpdate(F32 dt);
-void  ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
+void  ChatSpamUpdate(float dt);
+void  UpdateFeatures();  // Вызывается каждый кадр для обновления читов
 
+// Menu
 extern "C" void MenuInit();
 extern "C" void MenuToggle();
 extern "C" bool MenuIsOpen();
 extern "C" void MenuSetOpen(bool open);
 extern "C" void MenuRender(float dt, void* renderPassDescriptor);
-
-extern void* g_currentRenderPassDescriptor;
-
-struct PatternScanner {
-    static UPtr FindPattern(UPtr base, size_t size, const char* pattern, const char* mask);
-    static UPtr FindPatternModule(const char* module_name, const char* pattern, const char* mask);
-};
-
-struct HookManager {
-    static bool Hook(void* target, void* detour, void** original);
-    static bool Unhook(void* target);
-};
