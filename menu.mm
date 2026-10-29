@@ -7,18 +7,21 @@
 #include <imgui.h>
 #import <imgui_impl_metal.h>
 
-// ========== ГЛОБАЛЫ МЕНЮ (объявления до использования) ==========
+// ========== ГЛОБАЛЫ МЕНЮ ==========
 static bool g_menu_initialized = false;
+static bool g_menu_shown = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 static MTKView* g_mtk_view = nil;
 static CADisplayLink* g_display_link = nil;
+static DisplayLinkTarget* g_display_target = nil;
+static UIWindow* g_overlay_window = nil;
 
 extern bool g_menu_visible;
 float g_menu_slide = 0.0f;
 float g_menu_target = 0.0f;
 
-// ========== DisplayLink Target (для iOS 18+) ==========
+// ========== DisplayLink Target ==========
 @interface DisplayLinkTarget : NSObject
 @end
 @implementation DisplayLinkTarget
@@ -41,6 +44,10 @@ float g_menu_target = 0.0f;
     MTLRenderPassDescriptor *rpd = view.currentRenderPassDescriptor;
     id<MTLDrawable> drawable = view.currentDrawable;
     if (!rpd || !drawable) return;
+
+    // Прозрачная очистка кадра, чтобы не закрашивать игру
+    rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+    rpd.colorAttachments[0].clearColor = MTLClearColorMake(0.0f, 0.0f, 0.0f, 0.0f);
 
     ImGui_ImplMetal_NewFrame(rpd);
     ImGui::NewFrame();
@@ -93,7 +100,7 @@ float g_menu_target = 0.0f;
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0,0,0,0));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0,0,0,0));
         if (ImGui::Button(tabs[i], ImVec2(tabW - 16.0f, tabH - 16.0f))) tab = i;
-        ImGui::PopStyleColor(3);
+        ImGui::PopStyleColor(4); // исправлено: было 3, теперь 4
     }
 
     ImGui::SetCursorPos(ImVec2(20.0f, 46.0f));
@@ -166,7 +173,7 @@ float g_menu_target = 0.0f;
         ImGui::SameLine(); ImGui::SliderInt("StatTrak Value", &g_stattrak_value, 0, 9999, "%d");
         ImGui::Checkbox("Update Players", &g_skin_update_players);
     } else if (tab == 8) {
-        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "LOG (логи чита)");
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "LOG");
         ImGui::Separator();
         ImGui::TextUnformatted(g_log_buffer);
     }
@@ -179,7 +186,7 @@ float g_menu_target = 0.0f;
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "STATUS: ACTIVE");
     ImGui::End();
-    ImGui::PopStyleVar();  // matching PushStyleVar(ImGuiStyleVar_Alpha, ...)
+    ImGui::PopStyleVar(); // соответствует PushStyleVar(ImGuiStyleVar_Alpha)
 
     // Render
     id<MTLCommandBuffer> cmdBuf = [g_metal_queue commandBuffer];
@@ -203,25 +210,20 @@ extern "C" void MenuInit() {
 
     // Получаем ключевое окно через connectedScenes (iOS 13+)
     UIWindow* window = nil;
+    UIWindowScene* windowScene = nil;
     if (@available(iOS 13.0, *)) {
         for (UIScene* scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive &&
-                [scene isKindOfClass:[UIWindowScene class]]) {
-                UIWindowScene* windowScene = (UIWindowScene*)scene;
-                for (UIWindow* w in windowScene.windows) {
-                    if (w.isKeyWindow) {
-                        window = w;
-                        break;
-                    }
-                }
-                if (window) break;
+            if ([scene isKindOfClass:[UIWindowScene class]] &&
+                scene.activationState == UISceneActivationStateForegroundActive) {
+                windowScene = (UIWindowScene*)scene;
+                break;
             }
         }
     } else {
         window = [UIApplication sharedApplication].keyWindow;
     }
 
-    if (!window) {
+    if (!windowScene && !window) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
                            MenuInit();
@@ -234,20 +236,36 @@ extern "C" void MenuInit() {
     g_metal_queue = [g_metal_device newCommandQueue];
 
     // MTKView для рендеринга ImGui через Metal
-    CGRect frame = window.bounds;
+    CGRect frame = window ? window.bounds : windowScreenBounds(windowScene);
     g_mtk_view = [[MTKView alloc] initWithFrame:frame device:g_metal_device];
     g_mtk_view.framebufferOnly = YES;
     g_mtk_view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     g_mtk_view.preferredFramesPerSecond = 60;
-    g_mtk_view.enableSetNeedsDisplay = YES;
+    g_mtk_view.enableSetNeedsDisplay = NO;
     g_mtk_view.hidden = !g_menu_visible;
     g_mtk_view.backgroundColor = [UIColor clearColor];
+    g_mtk_view.opaque = NO;
+    g_mtk_view.layer.opaque = NO;
+    g_mtk_view.layer.backgroundColor = [UIColor clearColor].CGColor;
 
     g_delegate = [[ImGuiMTKViewDelegate alloc] init];
     g_mtk_view.delegate = g_delegate;
 
-    [window addSubview:g_mtk_view];
-    [window bringSubviewToFront:g_mtk_view];
+    // Создаём отдельное окно поверх Unity
+    if (windowScene) {
+        g_overlay_window = [[UIWindow alloc] initWithWindowScene:windowScene];
+        g_overlay_window.windowLevel = UIWindowLevelAlert + 1;
+        g_overlay_window.backgroundColor = [UIColor clearColor];
+        UIViewController* rootVC = [[UIViewController alloc] init];
+        rootVC.view.backgroundColor = [UIColor clearColor];
+        g_overlay_window.rootViewController = rootVC;
+        [g_overlay_window makeKeyAndVisible];
+        g_mtk_view.frame = g_overlay_window.bounds;
+        [g_overlay_window.rootViewController.view addSubview:g_mtk_view];
+    } else {
+        [window addSubview:g_mtk_view];
+        [window bringSubviewToFront:g_mtk_view];
+    }
 
     // ImGui контекст
     IMGUI_CHECKVERSION();
@@ -285,9 +303,9 @@ extern "C" void MenuInit() {
 
     ImGui_ImplMetal_Init(g_metal_device);
 
-    // CADisplayLink (обычный способ, не через windowScene — такого метода нет)
-    DisplayLinkTarget* target = [[DisplayLinkTarget alloc] init];
-    g_display_link = [CADisplayLink displayLinkWithTarget:target selector:@selector(fire:)];
+    // CADisplayLink
+    g_display_target = [[DisplayLinkTarget alloc] init];
+    g_display_link = [CADisplayLink displayLinkWithTarget:g_display_target selector:@selector(fire:)];
     g_display_link.preferredFramesPerSecond = 60;
     [g_display_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
@@ -309,4 +327,12 @@ extern "C" void MenuSetOpen(bool open) {
 
 extern "C" void MenuRender(float dt, void* renderPassDescriptor) {
     (void)dt; (void)renderPassDescriptor;
+}
+
+// Вспомогательная функция для получения фрейма окна сцены
+static CGRect windowScreenBounds(UIWindowScene* scene) {
+    if (@available(iOS 13.0, *)) {
+        return [scene.coordinateSpace convertRect:scene.coordinateSpace.bounds fromCoordinateSpace:nil];
+    }
+    return CGRectZero;
 }
