@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+#include <mach/mach.h>
+#include <mach/vm_map.h>
 
 typedef uintptr_t UPtr;
 

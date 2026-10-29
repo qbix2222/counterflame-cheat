@@ -118,7 +118,7 @@ extern float g_menu_anim_speed;
 extern int   g_menu_font_size;
 
 // === Functions ===
-void InstallAllPatches(UPtr base = 0);           // Основная установка патчей через vm_write
+void InstallAllPatches();
 void Config_Load();
 void Config_Save();
 

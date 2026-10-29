@@ -247,7 +247,7 @@ static void UpdateSilentAim() {
 }
 
 // ========== MAIN UPDATE LOOP ==========
-static void UpdateFeatures() {
+static void UpdateFeaturesReal() {
     if (!g_unity_base) {
         g_unity_base = GetUnityBase();
         if (!g_unity_base) return;
@@ -374,7 +374,7 @@ float Distance3D(Vec3 a, Vec3 b) { return Distance3DReal(a, b); }
 void ChatSpamUpdate(float dt) { ChatSpamUpdateReal(dt); }
 void ApplySkinChanger(void*, const char*, void*, int) {}
 
-void UpdateFeatures() { UpdateFeatures(); }
+void UpdateFeatures() { UpdateFeaturesReal(); }
 
 // ========== CONSTRUCTOR ==========
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {

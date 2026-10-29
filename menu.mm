@@ -73,7 +73,7 @@ static void DisplayLinkCallback(CADisplayLink* link) {
 - (void)drawInMTKView:(MTKView*)view {
     if (!g_menu_initialized) return;
     
-    id<MTLRenderPassDescriptor> rpd = view.currentRenderPassDescriptor;
+    MTLRenderPassDescriptor *rpd = view.currentRenderPassDescriptor;
     id<MTLDrawable> drawable = view.currentDrawable;
     if (!rpd || !drawable) return;
     
@@ -252,7 +252,6 @@ extern "C" void MenuInit() {
     g_mtk_view = [[MTKView alloc] initWithFrame:frame device:g_metal_device];
     g_mtk_view.framebufferOnly = YES;
     g_mtk_view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-    g_mtk_view.depthStencilPixelFormat = MTLPixelFormatDepth24Unorm_Stencil8;
     g_mtk_view.preferredFramesPerSecond = 60;
     g_mtk_view.enableSetNeedsDisplay = YES;
     g_mtk_view.hidden = !g_menu_visible;
