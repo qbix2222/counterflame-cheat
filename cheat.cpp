@@ -50,7 +50,6 @@ static FILE* g_log_file = nullptr;
 static const char* GetLogPath() {
     static char path[512] = {0};
     if (path[0] == 0) {
-        // NSTemporaryDirectory() эквивалент — /var/mobile/Containers/Data/Application/<GUID>/tmp/
         const char* tmp = getenv("TMPDIR");
         if (!tmp || tmp[0] == 0) tmp = "/tmp";
         snprintf(path, sizeof(path), "%s/counterflame_cheat.log", tmp);
@@ -86,12 +85,11 @@ static UPtr GetUnityBase() {
 
 // ========== ИГРОВОЕ СОСТОЯНИЕ ==========
 static void* g_game_controller = nullptr;
-static void* g_local_player = nullptr;
-static void* g_camera = nullptr;
+static void* g_local_player_obj = nullptr;
+static void* g_camera_obj = nullptr;
 
 // Находим GameController через GameObject.Find + GetComponent (с управляемой строкой!)
 static void* FindGameController() {
-    // Создаём управляемую строку Il2CppString*
     void* managed_str = g_il2cpp.Invoke<void*>("il2cpp_string_new", "GameController");
     if (!managed_str) return nullptr;
 
@@ -103,28 +101,22 @@ static void* FindGameController() {
 }
 
 static void UpdateGameState() {
-    if (g_game_controller) return; // уже нашли
+    if (g_game_controller) return;
     g_game_controller = FindGameController();
     if (!g_game_controller) return;
 
-    // GameController поля: localPlayer, camera, players, playerCount
-    // Читаем через прямой доступ к памяти (данные объекта)
-    // Смещения нужно определить через IL2CPP Resolver (GetFieldOffset)
-    // Пока используем жёсткие смещения из анализа dump.cs:
-    //   localPlayer ~ 0x20, camera ~ 0x28, players ~ 0x18, playerCount ~ 0x10
-    // (точные значения уточнить через il2cpp_dumper)
-    g_local_player = g_il2cpp.Read<void*>(g_game_controller, 0x20);
-    g_camera       = g_il2cpp.Read<void*>(g_game_controller, 0x28);
+    g_local_player_obj = g_il2cpp.Read<void*>(g_game_controller, 0x20);
+    g_camera_obj       = g_il2cpp.Read<void*>(g_game_controller, 0x28);
 }
 
-// ========== ДОСТУП К ИГРОКАМ ==========
-static int GetPlayerCount() {
+// ========== ДОСТУП К ИГРОКАМ (внутренние, без static конфликта) ==========
+static int GetPlayerCountReal() {
     void* gc = g_game_controller;
     if (!gc) return 0;
-    return g_il2cpp.Read<int>(gc, 0x10); // playerCount
+    return g_il2cpp.Read<int>(gc, 0x10);
 }
 
-static void* GetPlayer(int idx) {
+static void* GetPlayerReal(int idx) {
     void* gc = g_game_controller;
     if (!gc) return nullptr;
     int count = g_il2cpp.Read<int>(gc, 0x10);
@@ -133,37 +125,36 @@ static void* GetPlayer(int idx) {
     return players[idx];
 }
 
-static void* GetLocalPlayer() {
+static void* GetLocalPlayerReal() {
     UpdateGameState();
-    return g_local_player;
+    return g_local_player_obj;
 }
 
-static void* GetCamera() {
+static void* GetCameraReal() {
     UpdateGameState();
-    return g_camera;
+    return g_camera_obj;
 }
 
-static Vec3 GetPlayerPosition(void* player) {
+static Vec3 GetPlayerPositionReal(void* player) {
     if (!player) return V3(0,0,0);
-    // Находим Transform через Component.get_transform
     void* tr = ((void*(*)(void*))(g_unity_base + Offsets::Component_get_transform))(player);
     if (!tr) return V3(0,0,0);
     return ((Vec3(*)(void*))(g_unity_base + Offsets::Transform_get_position))(tr);
 }
 
-static Vec3 WorldToScreenPoint(Vec3 world) {
-    void* cam = GetCamera();
+static Vec3 WorldToScreenPointReal(Vec3 world) {
+    void* cam = GetCameraReal();
     if (!cam) return V3(0,0,0);
     return ((Vec3(*)(void*, Vec3))(g_unity_base + Offsets::Camera_WorldToScreenPoint))(cam, world);
 }
 
-static float Distance3D(Vec3 a, Vec3 b) {
+static float Distance3DReal(Vec3 a, Vec3 b) {
     F32 dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return sqrtf(dx*dx + dy*dy + dz*dz);
 }
 
-static Vec3 GetCameraForward() {
-    void* cam = GetCamera();
+static Vec3 GetCameraForwardReal() {
+    void* cam = GetCameraReal();
     if (!cam) return V3(0,0,1);
     void* tr = ((void*(*)(void*))(g_unity_base + Offsets::Component_get_transform))(cam);
     if (!tr) return V3(0,0,1);
@@ -171,7 +162,7 @@ static Vec3 GetCameraForward() {
 }
 
 // ========== ЧАТ СПАМ ==========
-static void ChatSpamUpdate(float dt) {
+static void ChatSpamUpdateReal(float dt) {
     if (!g_chat_spam) return;
     g_spam_timer += dt;
     if (g_spam_timer >= g_spam_interval) {
@@ -188,7 +179,7 @@ static void ChatSpamUpdate(float dt) {
 // ========== СПИНБОТ (через вызов метода, а не хук кода) ==========
 static void UpdateSpinbot() {
     if (!g_spin_enabled) return;
-    void* local = GetLocalPlayer();
+    void* local = GetLocalPlayerReal();
     if (!local) return;
 
     static float spin_yaw = 0.0f;
@@ -207,20 +198,17 @@ static void UpdateSpinbot() {
     }
 }
 
-// ========== БАННИХОП (через данные) ==========
+// ========== БАННИХОП ==========
 static void UpdateBunnyhop() {
     if (!g_bunnyhop) return;
-    // Вместо хука Input.GetButton — патчим данные CharacterController.isGrounded
-    // или эмулируем нажатие через IL2CPP. Пока оставляем заглушку.
-    // Можно найти объект CharacterController игрока и записать isGrounded = true
+    // Заглушка — можно патчить данные CharacterController через IL2CPP
 }
 
 // ========== ANTI-CHEAT БАЙПАС (через данные, НЕ код) ==========
 static void ApplyAntiCheatDataBypass() {
     if (!g_unity_base) return;
 
-    // Поиск классов через IL2CPP Resolver и запись в статические поля
-    // RootDetect: ScarletWork.AntiCheat.RootDetect -> _isJailbroken / _isRooted
+    // RootDetect: ScarletWork.AntiCheat.RootDetect -> _isRooted / _isJailbroken
     if (g_bypass_rootdetect) {
         void* rd_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "ScarletWork.AntiCheat", "RootDetect");
         if (rd_class) {
@@ -229,14 +217,13 @@ static void ApplyAntiCheatDataBypass() {
             if (off == 0) off = g_il2cpp.GetFieldOffset(rd_class, "isRooted");
             if (off == 0) off = g_il2cpp.GetFieldOffset(rd_class, "isJailbroken");
             if (off != 0) {
-                // Статическое поле — адрес класса + offset (в IL2CPP статические поля хранятся в объекте класса)
                 g_il2cpp.Write<bool>(rd_class, off, false);
                 LOG("RootDetect bypassed via field write");
             }
         }
     }
 
-    // ApkHashChecker: поле isModded / _isTampered
+    // ApkHashChecker: isModded / _isTampered
     if (g_bypass_version) {
         void* ah_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "ApkHashChecker");
         if (ah_class) {
@@ -262,7 +249,7 @@ static void ApplyAntiCheatDataBypass() {
         }
     }
 
-    // WallHackDetector: флаг включения детекции
+    // WallHackDetector: флаг детекции
     if (g_bypass_actk) {
         void* wh_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "WallHackDetector");
         if (wh_class) {
@@ -293,15 +280,9 @@ static void ApplyAntiCheatDataBypass() {
 static void ApplyWeaponDataPatches() {
     if (!g_no_recoil && !g_no_spread) return;
 
-    // Ищем класс WeaponParameters через IL2CPP
     void* wp_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "WeaponParameters");
     if (!wp_class) return;
 
-    // Для каждого экземпляра оружия обнуляем поля
-    // В реальной игре нужно найти WeaponController и итерировать его оружие
-    // Здесь упрощённый вариант: если есть доступ к текущему оружию, патчим его
-    // Статистически безопасно: записываем в известные оффсеты класса (если они статические)
-    // Для нестатических полей нужно перебирать экземпляры через IL2CPP
     LOG("Weapon patches active: no_recoil=%d no_spread=%d", g_no_recoil, g_no_spread);
 }
 
@@ -312,7 +293,7 @@ void UpdateFeaturesReal() {
     // Отложенная инициализация: ждём загрузки UnityFramework
     if (!g_initialized) {
         g_unity_base = GetUnityBase();
-        if (!g_unity_base) return; // Unity ещё не загружен
+        if (!g_unity_base) return;
         if (!g_il2cpp.Init()) {
             LOG("IL2CPP resolver init failed");
             return;
@@ -320,7 +301,6 @@ void UpdateFeaturesReal() {
         LOG("UnityFramework base: 0x%lx", g_unity_base);
         LOG("IL2CPP resolver initialized");
 
-        // Применяем байпасы античита через данные
         ApplyAntiCheatDataBypass();
         ApplyWeaponDataPatches();
 
@@ -328,35 +308,22 @@ void UpdateFeaturesReal() {
         LOG("Initial patches applied");
     }
 
-    // Обновляем состояние игры
     UpdateGameState();
-    if (!g_local_player) return;
+    if (!g_local_player_obj) return;
 
-    // Спинбот
     UpdateSpinbot();
-
-    // Баннихоп
     UpdateBunnyhop();
-
-    // Чат спам
-    ChatSpamUpdate(1.0f / 60.0f);
-
-    // Оружие (каждый кадр)
+    ChatSpamUpdateReal(1.0f / 60.0f);
     ApplyWeaponDataPatches();
-
-    // Античит (поддерживаем поля в false)
     ApplyAntiCheatDataBypass();
 }
 
 // ========== ЭКСПОРТЫ ДЛЯ МЕНЮ ==========
 void InstallAllPatches() {
     // Вызывается из UpdateFeaturesReal при первой итерации
-    // Оставляем для совместимости
 }
 
 void Config_Load() {
-    const char* path = GetLogPath();
-    // В той же папке что и лог, но config.cfg
     static char cfg_path[512] = {0};
     if (cfg_path[0] == 0) {
         const char* tmp = getenv("TMPDIR");
@@ -450,17 +417,17 @@ void Config_Save() {
     fclose(f);
 }
 
-// ========== ОБЁРТКИ ДЛЯ МЕНЮ ==========
+// ========== ОБЁРТКИ ДЛЯ МЕНЮ (совпадают с объявлениями в cheat.h) ==========
 void UpdatePlayerList() { UpdateGameState(); }
-void* GetLocalPlayer() { return GetLocalPlayer(); }
-void* GetCamera() { return GetCamera(); }
-int   GetPlayerCount() { return GetPlayerCount(); }
-void* GetPlayer(int idx) { return GetPlayer(idx); }
-Vec3  GetPlayerPosition(void* player) { return GetPlayerPosition(player); }
-Vec3  GetCameraForward() { return GetCameraForward(); }
-Vec3  WorldToScreenPoint(Vec3 world) { return WorldToScreenPoint(world); }
-float Distance3D(Vec3 a, Vec3 b) { return Distance3D(a, b); }
-void ChatSpamUpdate(float dt) { ChatSpamUpdate(dt); }
+void* GetLocalPlayer() { return GetLocalPlayerReal(); }
+void* GetCamera() { return GetCameraReal(); }
+int   GetPlayerCount() { return GetPlayerCountReal(); }
+void* GetPlayer(int idx) { return GetPlayerReal(idx); }
+Vec3  GetPlayerPosition(void* player) { return GetPlayerPositionReal(player); }
+Vec3  GetCameraForward() { return GetCameraForwardReal(); }
+Vec3  WorldToScreenPoint(Vec3 world) { return WorldToScreenPointReal(world); }
+float Distance3D(Vec3 a, Vec3 b) { return Distance3DReal(a, b); }
+void ChatSpamUpdate(float dt) { ChatSpamUpdateReal(dt); }
 void ApplySkinChanger(void*, const char*, void*, int) {}
 void UpdateFeatures() { UpdateFeaturesReal(); }
 
@@ -471,9 +438,6 @@ extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
         fprintf(g_log_file, "[CF] CounterFlameCheat init started (non-jailbreak)\n");
         fflush(g_log_file);
     }
-
-    // НЕ вызываем InstallAllPatches здесь! UnityFramework ещё не загружен.
-    // Инициализация произойдёт в UpdateFeaturesReal() при первом тике CADisplayLink.
 
     MenuInit();
 

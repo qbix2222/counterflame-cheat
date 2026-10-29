@@ -7,6 +7,17 @@
 #include <imgui.h>
 #import <imgui_impl_metal.h>
 
+// ========== ГЛОБАЛЫ МЕНЮ (объявления до использования) ==========
+static bool g_menu_initialized = false;
+static id<MTLDevice> g_metal_device = nil;
+static id<MTLCommandQueue> g_metal_queue = nil;
+static MTKView* g_mtk_view = nil;
+static CADisplayLink* g_display_link = nil;
+
+extern bool g_menu_visible;
+float g_menu_slide = 0.0f;
+float g_menu_target = 0.0f;
+
 // ========== DisplayLink Target (для iOS 18+) ==========
 @interface DisplayLinkTarget : NSObject
 @end
@@ -181,18 +192,6 @@
 
 static ImGuiMTKViewDelegate* g_delegate = nil;
 
-// ========== ГЛОБАЛЫ МЕНЮ ==========
-static bool g_menu_initialized = false;
-static id<MTLDevice> g_metal_device = nil;
-static id<MTLCommandQueue> g_metal_queue = nil;
-static MTKView* g_mtk_view = nil;
-static CADisplayLink* g_display_link = nil;
-static UIView* g_overlay_view = nil;
-
-extern bool g_menu_visible;
-float g_menu_slide = 0.0f;
-float g_menu_target = 0.0f;
-
 // ========== МЕНЮ ФУНКЦИИ ==========
 extern "C" void MenuInit() {
     if (g_menu_initialized) return;
@@ -218,7 +217,6 @@ extern "C" void MenuInit() {
     }
 
     if (!window) {
-        // Повтори попытку через 0.5 секунды (не бесконечный цикл)
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
                            MenuInit();
@@ -282,14 +280,9 @@ extern "C" void MenuInit() {
 
     ImGui_ImplMetal_Init(g_metal_device);
 
-    // CADisplayLink через UIWindowScene (iOS 18+)
+    // CADisplayLink (обычный способ, не через windowScene — такого метода нет)
     DisplayLinkTarget* target = [[DisplayLinkTarget alloc] init];
-    UIWindowScene* windowScene = (UIWindowScene*)window.windowScene;
-    if (windowScene) {
-        g_display_link = [windowScene displayLinkWithTarget:target selector:@selector(fire:)];
-    } else {
-        g_display_link = [CADisplayLink displayLinkWithTarget:target selector:@selector(fire:)];
-    }
+    g_display_link = [CADisplayLink displayLinkWithTarget:target selector:@selector(fire:)];
     g_display_link.preferredFramesPerSecond = 60;
     [g_display_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
@@ -310,6 +303,5 @@ extern "C" void MenuSetOpen(bool open) {
 }
 
 extern "C" void MenuRender(float dt, void* renderPassDescriptor) {
-    // Не используется с MTKView/CADisplayLink подходом
     (void)dt; (void)renderPassDescriptor;
 }
