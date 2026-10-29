@@ -62,8 +62,8 @@ static const char* GetLogPath() {
     return path;
 }
 
-static void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
-static void CFLog(const char* fmt, ...) {
+void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
+void CFLog(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     char buf[1024];
