@@ -7,19 +7,22 @@
 #include <imgui.h>
 #import <imgui_impl_metal.h>
 
-// ========== ГЛОБАЛЫ МЕНЮ ==========
+// ========== ГЛОБАЛЫ МЕНЮ (объявления до использования) ==========
 static bool g_menu_initialized = false;
 static bool g_menu_shown = false;
 static id<MTLDevice> g_metal_device = nil;
 static id<MTLCommandQueue> g_metal_queue = nil;
 static MTKView* g_mtk_view = nil;
 static CADisplayLink* g_display_link = nil;
-static DisplayLinkTarget* g_display_target = nil;
 static UIWindow* g_overlay_window = nil;
 
 extern bool g_menu_visible;
 float g_menu_slide = 0.0f;
 float g_menu_target = 0.0f;
+
+// Forward declaration для DisplayLinkTarget
+@class DisplayLinkTarget;
+static DisplayLinkTarget* g_display_target = nil; // СИЛЬНАЯ ссылка, иначе ARC удалит!
 
 // ========== DisplayLink Target ==========
 @interface DisplayLinkTarget : NSObject
@@ -204,6 +207,14 @@ float g_menu_target = 0.0f;
 
 static ImGuiMTKViewDelegate* g_delegate = nil;
 
+// Вспомогательная функция для получения фрейма окна сцены
+static CGRect windowScreenBounds(UIWindowScene* scene) {
+    if (@available(iOS 13.0, *)) {
+        return [scene.coordinateSpace convertRect:scene.coordinateSpace.bounds fromCoordinateSpace:nil];
+    }
+    return CGRectZero;
+}
+
 // ========== МЕНЮ ФУНКЦИИ ==========
 extern "C" void MenuInit() {
     if (g_menu_initialized) return;
@@ -327,12 +338,4 @@ extern "C" void MenuSetOpen(bool open) {
 
 extern "C" void MenuRender(float dt, void* renderPassDescriptor) {
     (void)dt; (void)renderPassDescriptor;
-}
-
-// Вспомогательная функция для получения фрейма окна сцены
-static CGRect windowScreenBounds(UIWindowScene* scene) {
-    if (@available(iOS 13.0, *)) {
-        return [scene.coordinateSpace convertRect:scene.coordinateSpace.bounds fromCoordinateSpace:nil];
-    }
-    return CGRectZero;
 }
