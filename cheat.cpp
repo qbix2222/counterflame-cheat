@@ -8,6 +8,8 @@
 #include <objc/objc.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
 UPtr g_unity_base = 0;
@@ -44,33 +46,42 @@ static const char* g_spam_msgs[] = {
     "ESP и сайлент аим включены", "Антибан активен", "Скин ченджер активен", NULL
 };
 
-// ========== ЛОГИРОВАНИЕ (безопасный путь) ==========
-static FILE* g_log_file = nullptr;
+// ========== ЛОГИРОВАНИЕ ==========
+static NSString* g_log_path = nil;
 
-static const char* GetLogPath() {
-    static char path[512] = {0};
-    if (path[0] == 0) {
-        const char* tmp = getenv("TMPDIR");
-        if (!tmp || tmp[0] == 0) tmp = "/tmp";
-        snprintf(path, sizeof(path), "%s/counterflame_cheat.log", tmp);
+static NSString* GetLogPath() {
+    if (!g_log_path) {
+        NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        if (paths.count > 0) {
+            g_log_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.log"];
+        } else {
+            g_log_path = @"/var/mobile/Containers/Data/Application/counterflame_cheat.log";
+        }
     }
-    return path;
+    return g_log_path;
 }
 
-static void Log(const char* fmt, ...) {
-    if (!g_log_file) {
-        g_log_file = fopen(GetLogPath(), "a");
-    }
-    if (!g_log_file) return;
+void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
+void CFLog(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    vfprintf(g_log_file, fmt, args);
-    fprintf(g_log_file, "\n");
-    fflush(g_log_file);
+    char buf[1024];
+    vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
+
+    // Пишем в файл
+    FILE* f = fopen([GetLogPath() UTF8String], "a");
+    if (f) {
+        fprintf(f, "[CF] %s\n", buf);
+        fflush(f);
+        fclose(f);
+    }
+
+    // Пишем в NSLog (попадает в системный лог iPad)
+    NSLog(@"[CF] %s", buf);
 }
 
-#define LOG(fmt, ...) Log("[CF] " fmt, ##__VA_ARGS__)
+#define LOG(fmt, ...) CFLog(fmt, ##__VA_ARGS__)
 
 // ========== ПОЛУЧЕНИЕ БАЗЫ UNITYFRAMEWORK ==========
 static UPtr GetUnityBase() {
@@ -88,15 +99,24 @@ static void* g_game_controller = nullptr;
 static void* g_local_player_obj = nullptr;
 static void* g_camera_obj = nullptr;
 
-// Находим GameController через GameObject.Find + GetComponent (с управляемой строкой!)
 static void* FindGameController() {
     void* managed_str = g_il2cpp.Invoke<void*>("il2cpp_string_new", "GameController");
-    if (!managed_str) return nullptr;
+    if (!managed_str) {
+        LOG("il2cpp_string_new returned nil!");
+        return nullptr;
+    }
 
     void* go = ((void*(*)(void*))(g_unity_base + Offsets::GameObject_Find))(managed_str);
-    if (!go) return nullptr;
+    if (!go) {
+        LOG("GameObject.Find('GameController') returned nil");
+        return nullptr;
+    }
 
     void* comp = ((void*(*)(void*, void*))(g_unity_base + Offsets::Component_GetComponent))(go, 0);
+    if (!comp) {
+        LOG("GetComponent returned nil");
+        return nullptr;
+    }
     return comp;
 }
 
@@ -107,9 +127,12 @@ static void UpdateGameState() {
 
     g_local_player_obj = g_il2cpp.Read<void*>(g_game_controller, 0x20);
     g_camera_obj       = g_il2cpp.Read<void*>(g_game_controller, 0x28);
+
+    LOG("GameController found: gc=0x%lx, localPlayer=0x%lx, camera=0x%lx",
+        (uintptr_t)g_game_controller, (uintptr_t)g_local_player_obj, (uintptr_t)g_camera_obj);
 }
 
-// ========== ДОСТУП К ИГРОКАМ (внутренние, без static конфликта) ==========
+// ========== ДОСТУП К ИГРОКАМ ==========
 static int GetPlayerCountReal() {
     void* gc = g_game_controller;
     if (!gc) return 0;
@@ -176,7 +199,7 @@ static void ChatSpamUpdateReal(float dt) {
     }
 }
 
-// ========== СПИНБОТ (через вызов метода, а не хук кода) ==========
+// ========== СПИНБОТ (через вызов метода) ==========
 static void UpdateSpinbot() {
     if (!g_spin_enabled) return;
     void* local = GetLocalPlayerReal();
@@ -201,14 +224,12 @@ static void UpdateSpinbot() {
 // ========== БАННИХОП ==========
 static void UpdateBunnyhop() {
     if (!g_bunnyhop) return;
-    // Заглушка — можно патчить данные CharacterController через IL2CPP
 }
 
-// ========== ANTI-CHEAT БАЙПАС (через данные, НЕ код) ==========
+// ========== ANTI-CHEAT БАЙПАС (через данные) ==========
 static void ApplyAntiCheatDataBypass() {
     if (!g_unity_base) return;
 
-    // RootDetect: ScarletWork.AntiCheat.RootDetect -> _isRooted / _isJailbroken
     if (g_bypass_rootdetect) {
         void* rd_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "ScarletWork.AntiCheat", "RootDetect");
         if (rd_class) {
@@ -218,12 +239,11 @@ static void ApplyAntiCheatDataBypass() {
             if (off == 0) off = g_il2cpp.GetFieldOffset(rd_class, "isJailbroken");
             if (off != 0) {
                 g_il2cpp.Write<bool>(rd_class, off, false);
-                LOG("RootDetect bypassed via field write");
+                LOG("RootDetect bypassed: field offset=0x%x", off);
             }
         }
     }
 
-    // ApkHashChecker: isModded / _isTampered
     if (g_bypass_version) {
         void* ah_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "ApkHashChecker");
         if (ah_class) {
@@ -232,57 +252,52 @@ static void ApplyAntiCheatDataBypass() {
             if (off == 0) off = g_il2cpp.GetFieldOffset(ah_class, "isTampered");
             if (off != 0) {
                 g_il2cpp.Write<bool>(ah_class, off, false);
-                LOG("ApkHashChecker bypassed via field write");
+                LOG("ApkHashChecker bypassed: field offset=0x%x", off);
             }
         }
     }
 
-    // SessionGuard: _isRevoked
     if (g_bypass_actk) {
         void* sg_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "ScarletWork.API", "SessionGuard");
         if (sg_class) {
             uint32_t off = g_il2cpp.GetFieldOffset(sg_class, "_isRevoked");
             if (off != 0) {
                 g_il2cpp.Write<bool>(sg_class, off, false);
-                LOG("SessionGuard bypassed via field write");
+                LOG("SessionGuard bypassed: field offset=0x%x", off);
             }
         }
-    }
 
-    // WallHackDetector: флаг детекции
-    if (g_bypass_actk) {
         void* wh_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "WallHackDetector");
         if (wh_class) {
             uint32_t off = g_il2cpp.GetFieldOffset(wh_class, "_isDetectionRunning");
             if (off == 0) off = g_il2cpp.GetFieldOffset(wh_class, "isDetectionRunning");
             if (off != 0) {
                 g_il2cpp.Write<bool>(wh_class, off, false);
-                LOG("WallHackDetector bypassed via field write");
+                LOG("WallHackDetector bypassed: field offset=0x%x", off);
             }
         }
-    }
 
-    // ShootRaycastModule — аналогично
-    if (g_bypass_actk) {
         void* sr_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "ShootRaycastModule");
         if (sr_class) {
             uint32_t off = g_il2cpp.GetFieldOffset(sr_class, "_isDetectionRunning");
             if (off == 0) off = g_il2cpp.GetFieldOffset(sr_class, "isDetectionRunning");
             if (off != 0) {
                 g_il2cpp.Write<bool>(sr_class, off, false);
-                LOG("ShootRaycastModule bypassed via field write");
+                LOG("ShootRaycastModule bypassed: field offset=0x%x", off);
             }
         }
     }
 }
 
-// ========== ОРУЖИЕ (No Recoil / No Spread через данные) ==========
+// ========== ОРУЖИЕ ==========
 static void ApplyWeaponDataPatches() {
     if (!g_no_recoil && !g_no_spread) return;
 
     void* wp_class = g_il2cpp.GetClass("Assembly-CSharp.dll", "", "WeaponParameters");
-    if (!wp_class) return;
-
+    if (!wp_class) {
+        LOG("WeaponParameters class not found");
+        return;
+    }
     LOG("Weapon patches active: no_recoil=%d no_spread=%d", g_no_recoil, g_no_spread);
 }
 
@@ -290,26 +305,32 @@ static void ApplyWeaponDataPatches() {
 static bool g_initialized = false;
 
 void UpdateFeaturesReal() {
-    // Отложенная инициализация: ждём загрузки UnityFramework
     if (!g_initialized) {
         g_unity_base = GetUnityBase();
-        if (!g_unity_base) return;
-        if (!g_il2cpp.Init()) {
-            LOG("IL2CPP resolver init failed");
+        if (!g_unity_base) {
+            LOG("UnityFramework not loaded yet");
             return;
         }
         LOG("UnityFramework base: 0x%lx", g_unity_base);
+
+        if (!g_il2cpp.Init()) {
+            LOG("IL2CPP resolver init FAILED");
+            return;
+        }
         LOG("IL2CPP resolver initialized");
 
         ApplyAntiCheatDataBypass();
         ApplyWeaponDataPatches();
 
         g_initialized = true;
-        LOG("Initial patches applied");
+        LOG("Initial patches applied successfully");
     }
 
     UpdateGameState();
-    if (!g_local_player_obj) return;
+    if (!g_local_player_obj) {
+        //LOG("Local player not found yet");
+        return;
+    }
 
     UpdateSpinbot();
     UpdateBunnyhop();
@@ -320,18 +341,14 @@ void UpdateFeaturesReal() {
 
 // ========== ЭКСПОРТЫ ДЛЯ МЕНЮ ==========
 void InstallAllPatches() {
-    // Вызывается из UpdateFeaturesReal при первой итерации
 }
 
 void Config_Load() {
-    static char cfg_path[512] = {0};
-    if (cfg_path[0] == 0) {
-        const char* tmp = getenv("TMPDIR");
-        if (!tmp || tmp[0] == 0) tmp = "/tmp";
-        snprintf(cfg_path, sizeof(cfg_path), "%s/counterflame_cheat.cfg", tmp);
-    }
+    NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    if (paths.count == 0) return;
+    NSString* cfg_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.cfg"];
 
-    FILE* f = fopen(cfg_path, "rb");
+    FILE* f = fopen([cfg_path UTF8String], "rb");
     if (!f) return;
     fread(&g_config, sizeof(CheatConfig), 1, f);
     fclose(f);
@@ -368,6 +385,8 @@ void Config_Load() {
     g_skin_stattrak = g_config.skin_stattrak;
     g_stattrak_value = g_config.stattrak_value;
     g_skin_update_players = g_config.skin_update_players;
+
+    LOG("Config loaded from %s", [cfg_path UTF8String]);
 }
 
 void Config_Save() {
@@ -404,20 +423,19 @@ void Config_Save() {
     g_config.stattrak_value = g_stattrak_value;
     g_config.skin_update_players = g_skin_update_players;
 
-    static char cfg_path[512] = {0};
-    if (cfg_path[0] == 0) {
-        const char* tmp = getenv("TMPDIR");
-        if (!tmp || tmp[0] == 0) tmp = "/tmp";
-        snprintf(cfg_path, sizeof(cfg_path), "%s/counterflame_cheat.cfg", tmp);
-    }
+    NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    if (paths.count == 0) return;
+    NSString* cfg_path = [paths[0] stringByAppendingPathComponent:@"counterflame_cheat.cfg"];
 
-    FILE* f = fopen(cfg_path, "wb");
+    FILE* f = fopen([cfg_path UTF8String], "wb");
     if (!f) return;
     fwrite(&g_config, sizeof(CheatConfig), 1, f);
     fclose(f);
+
+    LOG("Config saved to %s", [cfg_path UTF8String]);
 }
 
-// ========== ОБЁРТКИ ДЛЯ МЕНЮ (совпадают с объявлениями в cheat.h) ==========
+// ========== ОБЁРТКИ ДЛЯ МЕНЮ ==========
 void UpdatePlayerList() { UpdateGameState(); }
 void* GetLocalPlayer() { return GetLocalPlayerReal(); }
 void* GetCamera() { return GetCameraReal(); }
@@ -433,13 +451,23 @@ void UpdateFeatures() { UpdateFeaturesReal(); }
 
 // ========== КОНСТРУКТОР ==========
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    g_log_file = fopen(GetLogPath(), "w");
-    if (g_log_file) {
-        fprintf(g_log_file, "[CF] CounterFlameCheat init started (non-jailbreak)\n");
-        fflush(g_log_file);
+    // Первым делом — лог в системный консоль (NSLog)
+    NSLog(@"[CF] CounterFlameCheat dylib loaded (constructor)");
+
+    // Пытаемся создать лог-файл
+    NSString* logPath = GetLogPath();
+    FILE* f = fopen([logPath UTF8String], "w");
+    if (f) {
+        fprintf(f, "[CF] Constructor started\n");
+        fclose(f);
     }
+
+    LOG("Constructor: dylib loaded, waiting for UnityFramework...");
+
+    // НЕ вызываем InstallAllPatches здесь! UnityFramework ещё не загружен.
+    // Инициализация произойдёт в UpdateFeaturesReal() при первом тике CADisplayLink.
 
     MenuInit();
 
-    LOG("Constructor complete. Waiting for UnityFramework...");
+    LOG("Constructor complete. MenuInit called.");
 }
