@@ -41,11 +41,26 @@ static const char* g_spam_msgs[] = {
     "ESP и сайлент аим включены", "Антибан активен", "Скин ченджер активен", NULL
 };
 
+// ========== ЛОГ-БУФЕР ДЛЯ IMGUI МЕНЮ (видно на экране iPad) ==========
+char g_log_buffer[4096] = {0};
+int  g_log_lines = 0;
+
+static void LogAppendToBuffer(const char* text) {
+    size_t len = strlen(text);
+    if (g_log_lines + len + 2 > 4096) {
+        memmove(g_log_buffer, g_log_buffer + len + 2, 4096 - len - 2);
+        g_log_lines -= len + 2;
+    }
+    memcpy(g_log_buffer + g_log_lines, text, len);
+    g_log_buffer[g_log_lines + len] = '\n';
+    g_log_buffer[g_log_lines + len + 1] = '\0';
+    g_log_lines += len + 1;
+}
+
 // ========== ЛОГИРОВАНИЕ через stderr (попадает в системный лог iOS) ==========
 static const char* GetLogPath() {
     static char path[512] = {0};
     if (path[0] == 0) {
-        // Пробуем несколько путей
         const char* candidates[] = {
             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp",
             "/var/mobile/Containers/Data/Application",
@@ -62,8 +77,8 @@ static const char* GetLogPath() {
     return path;
 }
 
-void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
-void CFLog(const char* fmt, ...) {
+static void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
+static void CFLog(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     char buf[1024];
@@ -73,6 +88,11 @@ void CFLog(const char* fmt, ...) {
     // В stderr (попадает в системный лог iOS через asl/syslog)
     fprintf(stderr, "[CF] %s\n", buf);
     fflush(stderr);
+
+    // В ImGui-буфер (видно на экране iPad в меню)
+    char log_line[1050];
+    snprintf(log_line, sizeof(log_line), "[CF] %s", buf);
+    LogAppendToBuffer(log_line);
 
     // Также в файл
     FILE* f = fopen(GetLogPath(), "a");
@@ -201,7 +221,7 @@ static void ChatSpamUpdateReal(float dt) {
     }
 }
 
-// ========== СПИНБОТ ==========
+// ========== СПИНБОТ (через вызов метода) ==========
 static void UpdateSpinbot() {
     if (!g_spin_enabled) return;
     void* local = GetLocalPlayerReal();
@@ -228,7 +248,7 @@ static void UpdateBunnyhop() {
     if (!g_bunnyhop) return;
 }
 
-// ========== ANTI-CHEAT БАЙПАС (через данные) ==========
+// ========== ANTI-CHEAT БАЙПАС (через данные, НЕ код) ==========
 static void ApplyAntiCheatDataBypass() {
     if (!g_unity_base) return;
 
@@ -291,7 +311,7 @@ static void ApplyAntiCheatDataBypass() {
     }
 }
 
-// ========== ОРУЖИЕ ==========
+// ========== ОРУЖИЕ (No Recoil / No Spread через данные) ==========
 static void ApplyWeaponDataPatches() {
     if (!g_no_recoil && !g_no_spread) return;
 
@@ -345,11 +365,9 @@ void InstallAllPatches() {
 }
 
 void Config_Load() {
-    // Используем простой путь в /tmp
     static char cfg_path[512] = {0};
     if (cfg_path[0] == 0) {
         snprintf(cfg_path, sizeof(cfg_path), "%s/counterflame_cheat.cfg", GetLogPath());
-        // Убираем имя файла из пути, оставляем только директорию
         char* last_slash = strrchr(cfg_path, '/');
         if (last_slash) *last_slash = 0;
     }
@@ -463,11 +481,9 @@ void UpdateFeatures() { UpdateFeaturesReal(); }
 
 // ========== КОНСТРУКТОР ==========
 extern "C" void __attribute__((constructor)) CounterFlameCheatInit() {
-    // Первым делом — в stderr (системный лог iOS)
     fprintf(stderr, "[CF] CounterFlameCheat dylib loaded (constructor)\n");
     fflush(stderr);
 
-    // Пытаемся создать лог-файл
     FILE* f = fopen(GetLogPath(), "w");
     if (f) {
         fprintf(f, "[CF] Constructor started\n");

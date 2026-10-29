@@ -75,8 +75,8 @@ float g_menu_target = 0.0f;
 
     // Tabs
     static int tab = 0;
-    const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin" };
-    int tabCount = 8;
+    const char* tabs[] = { "Aimbot", "Anti-Aim", "Visuals", "Weapon", "Movement", "Chat", "Anti-Ban", "Skin", "LOG" };
+    int tabCount = 9;
     float tabW = (winSize.x - 32.0f) / tabCount;
     float tabH = 40.0f;
 
@@ -165,6 +165,10 @@ float g_menu_target = 0.0f;
         ImGui::Checkbox("StatTrak", &g_skin_stattrak);
         ImGui::SameLine(); ImGui::SliderInt("StatTrak Value", &g_stattrak_value, 0, 9999, "%d");
         ImGui::Checkbox("Update Players", &g_skin_update_players);
+    } else if (tab == 8) {
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "LOG (логи чита)");
+        ImGui::Separator();
+        ImGui::TextUnformatted(g_log_buffer);
     }
 
     ImGui::EndChild();

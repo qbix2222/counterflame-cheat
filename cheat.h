@@ -164,12 +164,9 @@ void  ChatSpamUpdate(float dt);
 void  UpdateFeaturesReal();
 void  ApplySkinChanger(void* weapon, const char* skinName, void* stickers, int seed);
 
-// === Lогирование (через NSLog в системный лог) ===
+// === Lогирование (через stderr + буфер для ImGui меню) ===
 void CFLog(const char* fmt, ...) __attribute__((format (printf, 1, 2)));
 
-// === Menu (Objective-C++) ===
-extern "C" void MenuInit();
-extern "C" void MenuToggle();
-extern "C" bool MenuIsOpen();
-extern "C" void MenuSetOpen(bool open);
-extern "C" void MenuRender(float dt, void* renderPassDescriptor);
+// Буфер логов для отображения в ImGui меню на экране iPad
+extern char g_log_buffer[4096];
+extern int  g_log_lines;
