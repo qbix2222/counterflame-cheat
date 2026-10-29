@@ -31,6 +31,9 @@ bool  g_skin_changer_enabled = false; int g_skin_id = 1; int g_skin_seed = 1337;
 bool  g_skin_stattrak = true; int g_stattrak_value = 1337; bool g_skin_update_players = true;
 
 bool  g_menu_visible = false; float g_menu_slide_offset = 0.0f;
+float g_menu_opacity = 1.0f;
+float g_menu_scale = 1.0f;
+int   g_menu_position = 0;
 float g_menu_anim_speed = 8.0f; int g_menu_font_size = 14;
 
 static const char* g_spam_msgs[] = {
