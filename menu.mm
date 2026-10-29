@@ -179,6 +179,7 @@ float g_menu_target = 0.0f;
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "STATUS: ACTIVE");
     ImGui::End();
+    ImGui::PopStyleVar();  // matching PushStyleVar(ImGuiStyleVar_Alpha, ...)
 
     // Render
     id<MTLCommandBuffer> cmdBuf = [g_metal_queue commandBuffer];
